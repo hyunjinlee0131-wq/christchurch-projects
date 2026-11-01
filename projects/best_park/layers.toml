@@ -1,0 +1,47 @@
+# Layers for Best Park. Donor/dedication fields name people, so they are never fetched (P9).
+[layers.park]
+service = "GreenAsset"
+name = "Park"
+
+[layers.play_equipment]
+service = "Furniture"
+name = "Play Equipment"
+exclude = ["DonorName"]
+
+[layers.seat]
+service = "Furniture"
+name = "Seat"
+exclude = ["DonorName", "DonatedBy"]
+
+[layers.picnic_table]
+service = "Furniture"
+name = "Picnic Table"
+exclude = ["DonorName"]
+
+[layers.bbq]
+service = "Furniture"
+name = "Barbecue"
+exclude = ["DonorName", "DonatedBy"]
+
+[layers.shower]
+service = "Furniture"
+name = "Shower"
+exclude = ["DonorName"]
+
+[layers.drinking_fountain]
+service = "WaterSupply"
+name = "Drinking Fountain"
+exclude = ["DonorName"]
+
+[layers.sport_field]
+service = "Recreation"
+name = "Sport Field"
+
+[layers.dog_exercise_area]
+service = "Recreation"
+name = "Dog Exercise Area"
+exclude = ["DonorName"]
+
+[layers.tree]
+service = "Tree"
+name = "Tree"
