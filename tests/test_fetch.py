@@ -15,19 +15,21 @@ REF = LayerRef(service="Svc", name="Thing", layer_id=0, url="https://x/Svc/Featu
 TABLE = replace(REF, name="Tbl", has_geometry=False)
 
 
-def layer_server(fake_server, *, n=5, served=None, fail_offset=None):
-    """Serve n rows (or `served` rows while claiming n) from REF's /query."""
+def layer_server(fake_server, *, n=5, served=None, fail_after=None):
+    """Serve n rows (or `served` rows while claiming n) from REF's /query, paged by `OID > last` (keyset)."""
     rows = [{"OID": i, "Label": f"r{i}", "OwnerName": "secret"} for i in range(served if served is not None else n)]
 
     def query(url):
         q = {k: v[0] for k, v in parse_qs(urlsplit(url).query).items()}
         if q.get("returnCountOnly") == "true":
             return {"count": n}
-        off, size = int(q["resultOffset"]), int(q["resultRecordCount"])
-        if fail_offset is not None and off == fail_offset:
+        assert "resultOffset" not in q, "keyset paging must not use resultOffset"
+        last = int(q["where"].split(">")[1]) if ">" in q["where"] else -1
+        if fail_after is not None and last >= fail_after:
             raise URLError("down")
         keep = None if q["outFields"] == "*" else q["outFields"].split(",")
-        chunk = [{k: v for k, v in r.items() if keep is None or k in keep} for r in rows[off:off + size]]
+        chunk = [r for r in rows if r["OID"] > last][: int(q["resultRecordCount"])]
+        chunk = [{k: v for k, v in r.items() if keep is None or k in keep} for r in chunk]
         if q["f"] == "geojson":
             return {"type": "FeatureCollection", "features": [
                 {"type": "Feature", "geometry": {"type": "Point", "coordinates": [172.63 + r["OID"] / 1000, -43.53]}, "properties": r}
@@ -39,7 +41,7 @@ def layer_server(fake_server, *, n=5, served=None, fail_offset=None):
 
 
 def page_calls(server):
-    return [u for u in server.calls if "resultOffset" in u]
+    return [u for u in server.calls if "resultRecordCount" in u]
 
 
 def test_fetch_pages_and_verifies_count(fake_server, tmp_path):
@@ -49,6 +51,7 @@ def test_fetch_pages_and_verifies_count(fake_server, tmp_path):
     assert list(gdf["OID"]) == [0, 1, 2, 3, 4]
     assert len(page_calls(s)) == 3
     assert all("orderByFields=OID" in u for u in page_calls(s))
+    assert [parse_qs(urlsplit(u).query)["where"][0] for u in page_calls(s)] == ["1=1", "OID > 1", "OID > 3"]
     assert 1_560_000 < gdf.geometry.x.min() < 1_580_000  # reprojected to NZTM metres
 
 
@@ -60,7 +63,7 @@ def test_fetch_count_mismatch_raises(fake_server, tmp_path):
 
 
 def test_fetch_failure_leaves_no_cache(fake_server, tmp_path):
-    layer_server(fake_server, fail_offset=2)
+    layer_server(fake_server, fail_after=1)
     with pytest.raises(URLError):
         fetch(REF, page_size=2, cache_dir=tmp_path)
     assert not cache_path(REF, tmp_path).exists()
@@ -168,10 +171,10 @@ def test_fetch_follows_rows_actually_returned(fake_server, tmp_path):
         q = {k: v[0] for k, v in parse_qs(urlsplit(url).query).items()}
         if q.get("returnCountOnly") == "true":
             return {"count": 5}
-        off = int(q["resultOffset"])
+        last = int(q["where"].split(">")[1]) if ">" in q["where"] else -1
         return {"type": "FeatureCollection", "features": [
             {"type": "Feature", "geometry": {"type": "Point", "coordinates": [172.6, -43.5]}, "properties": {"OID": i}}
-            for i in rows[off:off + 2]]}
+            for i in [r for r in rows if r > last][:2]]}
     fake_server({f"{REF.url}/query": query})
     assert sorted(fetch(REF, page_size=3, cache_dir=tmp_path)["OID"]) == rows
 
@@ -180,3 +183,16 @@ def test_fetch_clamps_page_size_to_server_max(fake_server, tmp_path):
     s = layer_server(fake_server)
     fetch(replace(REF, max_record_count=2), page_size=1000, cache_dir=tmp_path)
     assert all("resultRecordCount=2&" in u for u in page_calls(s))
+
+
+def test_fetch_requests_only_listed_fields_plus_oid(fake_server, tmp_path):
+    s = layer_server(fake_server)
+    gdf = fetch(REF, fields=["Label"], cache_dir=tmp_path)
+    assert all("outFields=OID%2CLabel&" in u for u in page_calls(s))
+    assert set(gdf.columns) == {"OID", "Label", "geometry"}
+
+
+def test_fetch_field_selection_has_its_own_cache(fake_server, tmp_path):
+    layer_server(fake_server)
+    assert "Label" not in fetch(REF, fields=[], cache_dir=tmp_path).columns
+    assert "Label" in fetch(REF, cache_dir=tmp_path).columns

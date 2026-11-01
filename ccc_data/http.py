@@ -28,7 +28,7 @@ def _open(url: str, timeout: float) -> bytes:
 _sleep = time.sleep
 
 
-def get_json(url: str, params: dict | None = None, *, retries: int = 3, timeout: float = 60.0) -> dict:
+def get_json(url: str, params: dict | None = None, *, retries: int = 5, timeout: float = 60.0) -> dict:
     full = f"{url}?{urlencode(params)}" if params else url
     for attempt in range(retries):
         last = attempt == retries - 1
@@ -47,4 +47,4 @@ def get_json(url: str, params: dict | None = None, *, retries: int = 3, timeout:
             code = err.get("code") or 0
             if last or not (code >= 500 or code in (498, 499)):  # 4xx bodies won't fix themselves
                 raise ArcGISError(f"{err.get('message', '')} {' '.join(err.get('details') or [])} ({full})".strip())
-        _sleep(0.5 * 2**attempt)
+        _sleep(2**attempt)  # 1, 2, 4, 8 s: rides out short CCC server drop-outs

@@ -3,3 +3,10 @@ data/
 __pycache__/
 projects/*/reports/*.html
 .superpowers/
+site/node_modules/
+site/dist/
+site/.astro/
+site/src/data/
+site/public/data/
+site/test-results/
+site/playwright-report/

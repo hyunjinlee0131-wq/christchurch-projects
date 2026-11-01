@@ -18,7 +18,7 @@ def load_layers(slug: str, *, refresh: bool = False, root: Path = Path("projects
     out = {}
     for key, spec in cfg["layers"].items():
         ref = resolve(spec["service"], spec["name"])
-        gdf = fetch(ref, exclude_fields=spec.get("exclude", ()), refresh=refresh)
+        gdf = fetch(ref, fields=spec.get("fields"), exclude_fields=spec.get("exclude", ()), refresh=refresh)
         out[key] = gdf
         last_sources.append({"key": key, "service": ref.service, "name": ref.name, "url": ref.url,
                              "count": len(gdf), "pulled_at": gdf.attrs.get("pulled_at")})

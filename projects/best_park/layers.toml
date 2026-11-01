@@ -1,47 +1,59 @@
-# Layers for Best Park. Donor/dedication fields name people, so they are never fetched (P9).
+# Layers for Best Park. Only needed columns are fetched (fields = [] means id + geometry):
+# full-width pulls of big layers time out on the CCC server. Donor fields name people and are
+# excluded as a second guard (P9).
 [layers.park]
 service = "GreenAsset"
 name = "Park"
+fields = ["ParkName", "Type", "drvArea"]
 
 [layers.play_equipment]
 service = "Furniture"
 name = "Play Equipment"
+fields = []
 exclude = ["DonorName"]
 
 [layers.seat]
 service = "Furniture"
 name = "Seat"
+fields = []
 exclude = ["DonorName", "DonatedBy"]
 
 [layers.picnic_table]
 service = "Furniture"
 name = "Picnic Table"
+fields = []
 exclude = ["DonorName"]
 
 [layers.bbq]
 service = "Furniture"
 name = "Barbecue"
+fields = []
 exclude = ["DonorName", "DonatedBy"]
 
 [layers.shower]
 service = "Furniture"
 name = "Shower"
+fields = []
 exclude = ["DonorName"]
 
 [layers.drinking_fountain]
 service = "WaterSupply"
 name = "Drinking Fountain"
+fields = []
 exclude = ["DonorName"]
 
 [layers.sport_field]
 service = "Recreation"
 name = "Sport Field"
+fields = []
 
 [layers.dog_exercise_area]
 service = "Recreation"
 name = "Dog Exercise Area"
+fields = []
 exclude = ["DonorName"]
 
 [layers.tree]
 service = "Tree"
 name = "Tree"
+fields = []

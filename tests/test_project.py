@@ -77,3 +77,13 @@ def test_write_manifest_has_provenance(tmp_path, fakes):
     assert m["data_pulled_at"].startswith("2026-11-01")  # oldest source
     assert len(m["sources"]) == 2 and m["outputs"] == ["a.geojson"]
     assert m["git_sha"] and m["transform_log"] == [{"step": "s"}]
+
+
+def test_load_layers_passes_fields(tmp_path, monkeypatch, fakes):
+    (tmp_path / "p").mkdir()
+    (tmp_path / "p" / "layers.toml").write_text('[layers.tree]\nservice = "Tree"\nname = "Tree"\nfields = []\n', encoding="utf-8")
+    seen = {}
+    real = project.fetch
+    monkeypatch.setattr(project, "fetch", lambda ref, **kw: seen.update(kw) or real(ref, **kw))
+    project.load_layers("p", root=tmp_path)
+    assert seen["fields"] == []

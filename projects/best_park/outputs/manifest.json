@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "data_pulled_at": "2026-11-01T09:52:16.646365+00:00",
+  "sources": [
+    {
+      "key": "park",
+      "service": "GreenAsset",
+      "name": "Park",
+      "url": "https://gis.ccc.govt.nz/server/rest/services/OpenData/GreenAsset/FeatureServer/12",
+      "count": 1396,
+      "pulled_at": "2026-11-01T09:52:16.646365+00:00"
+    },
+    {
+      "key": "play_equipment",
+      "service": "Furniture",
+      "name": "PlayEquipment",
+      "url": "https://gis.ccc.govt.nz/server/rest/services/OpenData/Furniture/FeatureServer/15",
+      "count": 8933,
+      "pulled_at": "2026-11-01T09:52:39.324483+00:00"
+    },
+    {
+      "key": "seat",
+      "service": "Furniture",
+      "name": "Seat",
+      "url": "https://gis.ccc.govt.nz/server/rest/services/OpenData/Furniture/FeatureServer/19",
+      "count": 4273,
+      "pulled_at": "2026-11-01T09:53:00.424488+00:00"
+    },
+    {
+      "key": "picnic_table",
+      "service": "Furniture",
+      "name": "PicnicTable",
+      "url": "https://gis.ccc.govt.nz/server/rest/services/OpenData/Furniture/FeatureServer/7",
+      "count": 1032,
+      "pulled_at": "2026-11-01T09:53:59.645020+00:00"
+    },
+    {
+      "key": "bbq",
+      "service": "Furniture",
+      "name": "Barbecue",
+      "url": "https://gis.ccc.govt.nz/server/rest/services/OpenData/Furniture/FeatureServer/3",
+      "count": 40,
+      "pulled_at": "2026-11-01T09:54:00.180774+00:00"
+    },
+    {
+      "key": "shower",
+      "service": "Furniture",
+      "name": "Shower",
+      "url": "https://gis.ccc.govt.nz/server/rest/services/OpenData/Furniture/FeatureServer/20",
+      "count": 35,
+      "pulled_at": "2026-11-01T09:54:00.718051+00:00"
+    },
+    {
+      "key": "drinking_fountain",
+      "service": "WaterSupply",
+      "name": "DrinkingFountain",
+      "url": "https://gis.ccc.govt.nz/server/rest/services/OpenData/WaterSupply/FeatureServer/1",
+      "count": 272,
+      "pulled_at": "2026-11-01T09:54:01.458636+00:00"
+    },
+    {
+      "key": "sport_field",
+      "service": "Recreation",
+      "name": "SportField",
+      "url": "https://gis.ccc.govt.nz/server/rest/services/OpenData/Recreation/FeatureServer/3",
+      "count": 1089,
+      "pulled_at": "2026-11-01T09:54:42.049977+00:00"
+    },
+    {
+      "key": "dog_exercise_area",
+      "service": "Recreation",
+      "name": "DogExerciseArea",
+      "url": "https://gis.ccc.govt.nz/server/rest/services/OpenData/Recreation/FeatureServer/1",
+      "count": 9,
+      "pulled_at": "2026-11-01T09:55:02.198507+00:00"
+    },
+    {
+      "key": "tree",
+      "service": "Tree",
+      "name": "Tree",
+      "url": "https://gis.ccc.govt.nz/server/rest/services/OpenData/Tree/FeatureServer/0",
+      "count": 183106,
+      "pulled_at": "2026-11-01T10:26:29.421482+00:00"
+    }
+  ],
+  "outputs": [
+    "parks.json",
+    "parks.geojson",
+    "metrics.json"
+  ],
+  "git_sha": "0541e5123b9e661862d8f8d27fb0a22f1af447ff",
+  "transform_log": [
+    {
+      "step": "keep visitor park types",
+      "rows_in": 1396,
+      "rows_out": 1143,
+      "dropped": 253,
+      "note": "excluded types not in ['Garden & Heritage Park', 'Local/Community Park', 'Regional Park', 'Residential Red Zone', 'Sports Park']"
+    },
+    {
+      "step": "drop parks under min area",
+      "rows_in": 1143,
+      "rows_out": 994,
+      "dropped": 149,
+      "note": "area < 0.1 ha"
+    }
+  ]
+}

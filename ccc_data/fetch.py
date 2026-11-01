@@ -23,11 +23,19 @@ class SchemaDrift(Exception):
     pass
 
 
-def cache_path(ref: LayerRef, cache_dir: Path, exclude_fields: Iterable[str] = ()) -> Path:
-    # Each exclude set gets its own file, so a fuller cached pull can never leak excluded fields (P9).
-    x = sorted(set(exclude_fields))
-    suffix = f"__x{hashlib.sha256(','.join(x).encode()).hexdigest()[:8]}" if x else ""
+def cache_path(ref: LayerRef, cache_dir: Path, out_fields: str = "*") -> Path:
+    # Each field selection gets its own file, so a fuller cached pull can never leak excluded fields (P9).
+    suffix = f"__f{hashlib.sha256(out_fields.encode()).hexdigest()[:8]}" if out_fields != "*" else ""
     return Path(cache_dir) / f"{ref.service}__{normalise(ref.name)}{suffix}.parquet"
+
+
+def out_fields_for(ref: LayerRef, fields: Iterable[str] | None, exclude_fields: Iterable[str]) -> str:
+    """The outFields string to request: an explicit list (always with the object id) or "*"."""
+    exclude = set(exclude_fields)
+    if fields is None and not exclude:
+        return "*"
+    wanted = ref.fields if fields is None else [ref.object_id_field, *fields]
+    return ",".join(dict.fromkeys(f for f in wanted if f not in exclude))
 
 
 def _meta_path(path: Path) -> Path:
@@ -53,14 +61,23 @@ def _download(ref: LayerRef, out_fields: str, page_size: int) -> gpd.GeoDataFram
     count = get_json(query, {"where": "1=1", "returnCountOnly": "true", "f": "json"})["count"]
     fmt = "geojson" if ref.has_geometry else "json"
     # ponytail: all features held in memory (~1-2 GB for Building's 237k polygons); concat per-page frames if that bites
+    oid = ref.object_id_field
     feats: list[dict] = []
+    where = "1=1"
+    # Keyset paging (`oid > last`): deep resultOffset pages get slower the deeper they go
+    # (Tree: 1.3 s vs 12.3 s per page at row 150k). Advancing by the last id returned also
+    # copes with servers that cap a page below the requested size.
     while len(feats) < count:
-        page = get_json(query, {"where": "1=1", "outFields": out_fields, "orderByFields": ref.object_id_field,
-                                "resultOffset": len(feats), "resultRecordCount": page_size, "f": fmt})
+        page = get_json(query, {"where": where, "outFields": out_fields, "orderByFields": oid,
+                                "resultRecordCount": page_size, "f": fmt})
         got = page.get("features") or []
         if not got:
             break
-        feats += got  # advance by rows actually returned: servers may cap pages below the request
+        feats += got
+        last = got[-1].get("properties", got[-1].get("attributes", {})).get(oid, got[-1].get("id"))
+        if last is None:
+            raise CountMismatch(f"{ref.service}/{ref.name}: page rows lack {oid}; cannot page")
+        where = f"{oid} > {int(last)}"
     if len(feats) != count:
         raise CountMismatch(f"{ref.service}/{ref.name}: server count {count}, fetched {len(feats)}")
     if ref.has_geometry:
@@ -76,12 +93,13 @@ def _download(ref: LayerRef, out_fields: str, page_size: int) -> gpd.GeoDataFram
     return gdf
 
 
-def fetch(ref: LayerRef, *, exclude_fields: Iterable[str] = (), refresh: bool = False, max_age_days: int = 35,
+def fetch(ref: LayerRef, *, fields: Iterable[str] | None = None, exclude_fields: Iterable[str] = (), refresh: bool = False, max_age_days: int = 35,
           page_size: int | None = None, cache_dir: Path = Path("data/raw"),
           accept_schema_change: bool = False) -> gpd.GeoDataFrame:
     cache_dir = Path(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
-    path = cache_path(ref, cache_dir, exclude_fields)
+    out_fields = out_fields_for(ref, fields, exclude_fields)
+    path = cache_path(ref, cache_dir, out_fields)
     fields_hash = _fields_hash(ref.fields)
 
     cached = None if refresh else _read_cache(path, max_age_days)
@@ -99,8 +117,6 @@ def fetch(ref: LayerRef, *, exclude_fields: Iterable[str] = (), refresh: bool = 
         raise SchemaDrift(f"{ref.service}/{ref.name}: fields changed since last pull; "
                           f"check the pipeline, then pass accept_schema_change=True")
 
-    exclude = set(exclude_fields)
-    out_fields = ",".join(f for f in ref.fields if f not in exclude) if exclude else "*"
     gdf = _download(ref, out_fields, min(page_size or ref.max_record_count, ref.max_record_count))
 
     pulled_at = datetime.now(timezone.utc).isoformat()
