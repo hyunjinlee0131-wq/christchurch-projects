@@ -74,11 +74,19 @@ def score(pct: pd.DataFrame, weights: dict[str, float]) -> pd.Series:
 
 
 def slugify_unique(names: list[str]) -> list[str]:
-    seen: dict[str, int] = {}
-    out = []
+    bases = []
     for name in names:
         ascii_ = "".join(ch for ch in unicodedata.normalize("NFKD", name) if not unicodedata.combining(ch))
-        base = re.sub(r"[^a-z0-9]+", "-", ascii_.lower().replace("'", "")).strip("-") or "park"
-        seen[base] = seen.get(base, 0) + 1
-        out.append(base if seen[base] == 1 else f"{base}-{seen[base]}")
+        ascii_ = re.sub(r"['‘’`]", "", ascii_.lower())  # St Paul's / St Paul’s -> st-pauls
+        bases.append(re.sub(r"[^a-z0-9]+", "-", ascii_).strip("-") or "park")
+    taken: set[str] = set()
+    out = []
+    for base in bases:
+        # A park literally named "X 2" may already own "x-2", so keep counting until the slug is free.
+        slug, n = base, 1
+        while slug in taken:
+            n += 1
+            slug = f"{base}-{n}"
+        taken.add(slug)
+        out.append(slug)
     return out

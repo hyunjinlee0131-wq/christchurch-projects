@@ -10,3 +10,4 @@ site/src/data/
 site/public/data/
 site/test-results/
 site/playwright-report/
+node_modules/

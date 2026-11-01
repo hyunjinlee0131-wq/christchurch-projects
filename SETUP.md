@@ -23,7 +23,7 @@ After adding or changing secrets, re-run the deploy: **Actions → Deploy site �
    URL=https://YOUR-PROJECT.supabase.co; KEY=YOUR-ANON-KEY
    # a vote is accepted (expect HTTP 201)
    curl -s -o /dev/null -w "%{http_code}\n" -X POST "$URL/rest/v1/park_votes" -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
-     -H "Content-Type: application/json" -d '{"park_id":"setup-test","voter_id":"00000000-0000-4000-8000-000000000000"}'
+     -H "Content-Type: application/json" -d '{"park_id":"999999","voter_id":"00000000-0000-4000-8000-000000000000"}'
    # the same vote again is refused as a duplicate (expect 409)
    # raw votes are not readable (expect an empty list or a permission error)
    curl -s "$URL/rest/v1/park_votes?select=*" -H "apikey: $KEY" -H "Authorization: Bearer $KEY"
@@ -31,6 +31,9 @@ After adding or changing secrets, re-run the deploy: **Actions → Deploy site �
    curl -s "$URL/rest/v1/park_vote_counts?select=*" -H "apikey: $KEY" -H "Authorization: Bearer $KEY"
    ```
 5. Delete the test vote in **Table Editor → park_votes**.
+6. Rate-limit check: send 31 votes with different `voter_id`s from the same machine; the 31st should be refused.
+   Repeat with a made-up `X-Forwarded-For: 1.2.3.4` header and confirm it is *still* refused (the header must not
+   reset the limit). The rate limit is a speed bump, not a guarantee: it cannot stop someone with many IP addresses.
 
 To see votes and feedback yourself, use the Supabase **Table Editor** (you're signed in as the owner, so RLS doesn't apply to you).
 
@@ -47,6 +50,11 @@ Events sent: `vote`, `reweight`, `near_me`, `share`, `feedback`, `open_park`. Fi
 1. <https://forms.google.com> → blank form "Christchurch Projects feedback".
 2. Questions: *Which project?* (dropdown: Best Park, …), *What did you like?*, *What's missing or wrong?*, *Email (optional)*.
 3. Send → link → copy, and put it in `PUBLIC_FEEDBACK_FORM_URL`. Responses go to a Google Sheet only you can see.
+
+## GitHub Actions (monthly data refresh)
+
+The refresh workflow opens a pull request, which GitHub blocks by default. Turn it on once:
+Settings → Actions → General → Workflow permissions → tick **Allow GitHub Actions to create and approve pull requests** → Save.
 
 ## GitHub Pages
 

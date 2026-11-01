@@ -5,7 +5,7 @@
 create extension if not exists pgcrypto with schema extensions;
 
 create table if not exists public.park_votes (
-  park_id    text not null check (char_length(park_id) between 1 and 64),
+  park_id    text not null check (park_id ~ '^[0-9]{1,7}$'),  -- CCC ParkIDs are integers; junk ids are refused
   voter_id   uuid not null,
   ip_hash    text,
   created_at timestamptz not null default now(),
@@ -41,15 +41,26 @@ create or replace view public.park_vote_counts as
 revoke all on public.park_vote_counts from anon;
 grant select on public.park_vote_counts to anon;
 
--- Rate limit: hash the caller's IP (never stored raw) and cap inserts per IP per 10 minutes.
+-- Secret salt for IP hashes, in a schema the API does not expose (only `public` is exposed by default).
+-- A plain sha256 of an IPv4 address can be reversed by trying all 4 billion addresses; a secret salt prevents that.
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated;
+create table if not exists private.ip_salt (salt bytea not null);
+insert into private.ip_salt select extensions.gen_random_bytes(32) where not exists (select 1 from private.ip_salt);
+
+-- Rate limit: hash the caller's IP (salted, never stored raw) and cap inserts per IP per 10 minutes.
+-- The client can put anything at the START of X-Forwarded-For, so we never trust that part: prefer the
+-- address Cloudflare saw (cf-connecting-ip), else the LAST X-Forwarded-For entry, which our proxy appended.
 create or replace function public.limit_inserts() returns trigger
 language plpgsql security definer set search_path = public, extensions as $$
 declare
-  ip text := split_part(coalesce(current_setting('request.headers', true)::json->>'x-forwarded-for', ''), ',', 1);
+  headers json := coalesce(current_setting('request.headers', true), '{}')::json;
+  xff text[] := string_to_array(coalesce(headers->>'x-forwarded-for', ''), ',');
+  ip text := trim(coalesce(nullif(headers->>'cf-connecting-ip', ''), xff[array_length(xff, 1)], ''));
   recent int;
   max_per_10min int := case when tg_table_name = 'park_votes' then 30 else 20 end;
 begin
-  new.ip_hash := encode(digest(ip, 'sha256'), 'hex');
+  new.ip_hash := encode(hmac(convert_to(ip, 'UTF8'), (select salt from private.ip_salt limit 1), 'sha256'), 'hex');
   new.created_at := now();
   execute format('select count(*) from public.%I where ip_hash = $1 and created_at > now() - interval ''10 minutes''', tg_table_name)
     into recent using new.ip_hash;

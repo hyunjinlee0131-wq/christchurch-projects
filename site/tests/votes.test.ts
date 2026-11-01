@@ -90,3 +90,12 @@ describe("voter id", () => {
     expect(votingEnabled(CFG)).toBe(true);
   });
 });
+
+describe("counts query", () => {
+  it("asks for the most-voted parks first so junk rows can't truncate real ones", async () => {
+    const f = vi.fn(() => res(200, []));
+    await getCounts(f as any, CFG);
+    const [url] = f.mock.calls[0] as unknown as [string];
+    expect(url).toContain("order=votes.desc");
+  });
+});

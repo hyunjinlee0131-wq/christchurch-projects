@@ -69,3 +69,13 @@ def test_slugify_unique_handles_collisions_and_macrons():
 def test_percentiles_zero_means_none_not_tied_rank():
     pct = percentiles(pd.DataFrame({"bbq": [0, 0, 5]}))
     assert list(pct["bbq"]) == [0.0, 0.0, 1.0]
+
+
+def test_slugify_unique_never_reuses_an_existing_suffixed_slug():
+    # real data has a park literally named "Owaka Reserve 2"; a duplicate "Owaka Reserve" must not collide with it
+    slugs = slugify_unique(["Owaka Reserve 2", "Owaka Reserve", "Owaka Reserve"])
+    assert len(set(slugs)) == 3 and slugs[0] == "owaka-reserve-2"
+
+
+def test_slugify_strips_curly_apostrophes_like_straight_ones():
+    assert slugify_unique(["St Paul’s Park"]) == slugify_unique(["St Paul's Park"]) == ["st-pauls-park"]

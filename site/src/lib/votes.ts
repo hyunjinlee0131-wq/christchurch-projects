@@ -103,7 +103,8 @@ export function sendFeedback(project: string, itemId: string, value: 1 | -1, vot
 export async function getCounts(f: typeof fetch = fetch, cfg: Config = ENV): Promise<Record<string, number> | null> {
   if (!votingEnabled(cfg)) return null;
   try {
-    const r = await request("park_vote_counts?select=park_id,votes", { method: "GET" }, f, cfg);
+    // Most-voted first: junk rows can only push out other junk, never the real leaders.
+    const r = await request("park_vote_counts?select=park_id,votes&order=votes.desc&limit=1000", { method: "GET" }, f, cfg);
     if (!r.ok) return null;
     const rows = (await r.json()) as { park_id: string; votes: number }[];
     return Object.fromEntries(rows.map((x) => [x.park_id, Number(x.votes)]));
