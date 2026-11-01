@@ -25,6 +25,7 @@ const TOP_N = 10;
     <section class="card people" aria-labelledby="people-h">
       <h2 id="people-h">People's Choice</h2>
       <p class="muted">The data can't measure everything.</p>
+      <p class="vote-call">Vote for your favourite park in Christchurch!</p>
       <div id="people" data-min="20">
         <p class="muted" id="people-msg">{votingConfigured ? "Loading votes…" : "Voting opens soon."}</p>
         <ol id="podium" class="podium" aria-label="People's Choice top 3" hidden></ol>
@@ -320,6 +321,7 @@ const TOP_N = 10;
   .bar { display: inline-block; height: 8px; width: calc(var(--w) * 0.6px); max-width: 60px; background: var(--accent); border-radius: 4px; }
   #show-all { margin-top: 0.75rem; }
   .people { margin: 1.5rem 0 2rem; }
+  .vote-call { font-size: 1.15rem; font-weight: 700; color: var(--accent); margin-top: -0.25rem; }
   .ranking { margin-bottom: 2rem; }
   .toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 1rem 0 0.5rem; }
   .toolbar .search { flex: 1 1 220px; }
