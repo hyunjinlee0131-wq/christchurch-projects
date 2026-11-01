@@ -52,11 +52,11 @@ const pulled = dataPulledAt ? new Date(dataPulledAt).toLocaleDateString("en-NZ",
       <div class="wrap">
         <p>
           {pulled && <>Data pulled {pulled} · </>}
-          Data: <a href="https://opendata-christchurchcity.hub.arcgis.com/">Christchurch City Council</a>
+          Data: <a href="https://opendata-christchurchcity.hub.arcgis.com/">Christchurch City Council</a>{" "}
           (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>)
           {feedbackUrl && <> · <a href={feedbackUrl}>Tell us what you think</a></>}
         </p>
-        <p class="muted">An independent project, not affiliated with Christchurch City Council.
+        <p class="muted">An independent project, not affiliated with Christchurch City Council.{" "}
           <a href="https://github.com/hyunjinlee0131-wq/christchurch-projects">Source on GitHub</a></p>
       </div>
     </footer>

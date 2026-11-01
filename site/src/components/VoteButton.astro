@@ -4,7 +4,7 @@ interface Props { parkId: string; parkName: string }
 const { parkId, parkName } = Astro.props;
 ---
 <span class="vote-wrap">
-  <button type="button" class="vote btn-primary" data-park={parkId} aria-label={`Vote for ${parkName}`}>👍 I love this park</button>
+  <button type="button" class="vote btn-primary" data-park={parkId}>👍 I love this park</button>
   <span class="vote-count muted" data-park={parkId} aria-live="polite"></span>
 </span>
 

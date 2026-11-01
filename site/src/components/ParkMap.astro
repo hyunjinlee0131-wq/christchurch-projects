@@ -17,7 +17,12 @@ const base = import.meta.env.BASE_URL;
   const el = document.getElementById("park-map") as HTMLElement;
   const start = async () => {
     try {
-      const [{ default: maplibregl }] = await Promise.all([import("maplibre-gl"), import("maplibre-gl/dist/maplibre-gl.css")]);
+      const [maplibregl, worker] = await Promise.all([
+        import("maplibre-gl"),
+        import("maplibre-gl/dist/maplibre-gl-worker.mjs?url"), // self-contained: bundlers break MapLibre's relative worker lookup
+        import("maplibre-gl/dist/maplibre-gl.css"),
+      ]);
+      maplibregl.setWorkerUrl(worker.default);
       el.querySelector(".map-msg")?.remove();
       const map = new maplibregl.Map({
         container: el,
@@ -50,7 +55,8 @@ const base = import.meta.env.BASE_URL;
         map.on("mouseenter", "parks-fill", () => (map.getCanvas().style.cursor = "pointer"));
         map.on("mouseleave", "parks-fill", () => (map.getCanvas().style.cursor = ""));
       });
-    } catch {
+    } catch (err) {
+      console.error("park map failed", err);
       el.innerHTML = '<p class="map-msg muted">The map could not load. The ranking above still works.</p>';
     }
   };

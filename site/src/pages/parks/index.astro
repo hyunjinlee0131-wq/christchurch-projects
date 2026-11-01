@@ -23,8 +23,11 @@ const TOP_N = 10;
     <p class="lede">The #1 park by the data is <a href={`${base}parks/${top.slug}/`}><strong>{top.name}</strong></a>.
       Ranked from {n} parks using council data on what's actually in them.</p>
 
-    <section class="card controls" aria-labelledby="w-h">
-      <h2 id="w-h">What matters to you?</h2>
+
+    <section aria-labelledby="list-h">
+      <h2 id="list-h">Ranking</h2>
+    <details class="card controls">
+      <summary><h2 id="w-h">What matters to you?</h2> <span class="muted">Re-rank every park for you</span></summary>
       <p class="muted">Slide to re-rank every park for you. 0 = don't care, 3 = very important.</p>
       <div class="sliders">
         {data.factors.map((f) => (
@@ -41,10 +44,7 @@ const TOP_N = 10;
         <button type="button" id="near-me">Parks near me</button>
       </div>
       <p id="status" class="muted" role="status" aria-live="polite"></p>
-    </section>
-
-    <section aria-labelledby="list-h">
-      <h2 id="list-h">Ranking</h2>
+    </details>
       <div class="table-wrap">
         <table id="rank-table" class="collapsed">
           <thead>
@@ -241,7 +241,9 @@ const TOP_N = 10;
 
 <style>
   .lede { font-size: 1.15rem; }
-  .controls { margin: 1.5rem 0; }
+  .controls { margin: 0 0 1rem; }
+  .controls summary { cursor: pointer; display: flex; align-items: baseline; gap: 0.75rem; flex-wrap: wrap; min-height: 44px; }
+  .controls summary h2 { display: inline; font-size: 1.15rem; margin: 0; }
   .sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.5rem 1.5rem; }
   .slider { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0 0.5rem; }
   .slider span { grid-column: 1 / -1; font-size: 0.95rem; }

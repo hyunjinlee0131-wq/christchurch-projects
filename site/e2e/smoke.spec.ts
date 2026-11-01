@@ -27,6 +27,7 @@ test("home shows Best Park card with #1 park", async ({ page }) => {
 
 test("leaderboard shows a ranked list without any input", async ({ page }) => {
   await page.goto("parks/");
+  await expect(page.locator("#rank-table tbody tr").first()).toBeInViewport(); // result on the first screen
   const rows = page.locator("#rank-table tbody tr:visible");
   await expect(rows).toHaveCount(10);
   await expect(rows.first().locator(".rank")).toHaveText("1");
@@ -41,6 +42,7 @@ test("show all expands the list", async ({ page }) => {
 
 test("sliders re-rank the list", async ({ page }) => {
   await page.goto("parks/");
+  await page.locator("details.controls summary").click();
   const firstBefore = await page.locator("#rank-table tbody tr").first().getAttribute("data-id");
   for (const key of ["play", "seating", "bbq", "water", "sport", "trees", "size"]) await page.locator(`input[data-key=${key}]`).fill("0");
   await page.locator("input[data-key=dogs]").fill("3");
@@ -52,6 +54,7 @@ test("sliders re-rank the list", async ({ page }) => {
 
 test("all-zero weights show a message instead of breaking", async ({ page }) => {
   await page.goto("parks/");
+  await page.locator("details.controls summary").click();
   for (const s of await page.locator(".slider input").all()) await s.fill("0");
   await expect(page.locator("#status")).toContainText("Pick at least one");
   await expect(page.locator("#rank-table tbody tr").first().locator(".rank")).toHaveText("1");
@@ -101,6 +104,8 @@ test("no serious or critical axe violations on a park page", async ({ page }) =>
 
 test("keyboard: sliders and share button reachable by Tab", async ({ page, browserName }) => {
   await page.goto("parks/");
+  await page.locator("details.controls summary").focus();
+  await page.keyboard.press("Enter"); // open with the keyboard
   const seen = new Set<string>();
   for (let i = 0; i < 40; i++) {
     await page.keyboard.press("Tab");
@@ -108,4 +113,24 @@ test("keyboard: sliders and share button reachable by Tab", async ({ page, brows
   }
   expect(seen.has("play")).toBe(true);
   expect(seen.has("near-me")).toBe(true);
+});
+
+test("map renders parks", async ({ page }) => {
+  await page.goto("parks/");
+  await page.locator("#park-map").scrollIntoViewIfNeeded();
+  await expect(page.locator("#park-map canvas")).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator("#park-map")).not.toContainText("could not load");
+  expect(errors.filter((e) => /park map failed/.test(e))).toEqual([]);
+});
+
+test("inline links keep their spaces", async ({ page }) => {
+  await page.goto(await firstParkHref(page));
+  await expect(page.locator(".site-footer")).toContainText("Christchurch City Council (CC BY 4.0)");
+  await expect(page.locator(".site-footer")).toContainText("Council. Source on GitHub");
+  await expect(page.locator("main")).toContainText("Open in a map · Directions");
+});
+
+test("feedback box hidden when nothing to show", async ({ page }) => {
+  await page.goto(await firstParkHref(page));
+  await expect(page.locator(".feedback")).toBeHidden();
 });

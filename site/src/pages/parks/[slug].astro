@@ -66,8 +66,7 @@ const shareText = `${park.name} is #${park.rank} of ${n} parks in Christchurch`;
 
     <section aria-labelledby="where-h">
       <h2 id="where-h">Where</h2>
-      <p><a href={`https://www.openstreetmap.org/?mlat=${park.lat}&mlon=${park.lon}#map=16/${park.lat}/${park.lon}`}>Open in a map</a>
-        · <a href={`https://www.google.com/maps/dir/?api=1&destination=${park.lat},${park.lon}`}>Directions</a></p>
+      <p><a href={`https://www.openstreetmap.org/?mlat=${park.lat}&mlon=${park.lon}#map=16/${park.lat}/${park.lon}`}>Open in a map</a>{" · "}<a href={`https://www.google.com/maps/dir/?api=1&destination=${park.lat},${park.lon}`}>Directions</a></p>
     </section>
 
     <Feedback project="best_park" itemId={park.id} question="Does this ranking feel right for this park?" />

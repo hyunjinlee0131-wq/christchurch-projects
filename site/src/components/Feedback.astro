@@ -3,14 +3,17 @@
 interface Props { project: string; itemId: string; question?: string }
 const { project, itemId, question = "Was this useful?" } = Astro.props;
 const formUrl = import.meta.env.PUBLIC_FEEDBACK_FORM_URL;
+const canVote = Boolean(import.meta.env.PUBLIC_SUPABASE_URL && import.meta.env.PUBLIC_SUPABASE_ANON_KEY);
+// Nothing to offer (no Supabase, no form): render nothing rather than an empty box.
+const show = canVote || Boolean(formUrl);
 ---
-<aside class="feedback card" data-project={project} data-item={itemId} aria-label="Feedback">
+{show && <aside class="feedback card" data-project={project} data-item={itemId} aria-label="Feedback">
   <span>{question}</span>
   <button type="button" data-value="1" aria-label="Yes, useful">👍</button>
   <button type="button" data-value="-1" aria-label="No, not useful">👎</button>
   <span class="fb-status muted" role="status" aria-live="polite"></span>
   {formUrl && <a href={formUrl}>Tell us more</a>}
-</aside>
+</aside>}
 
 <script>
   import { sendFeedback, votingEnabled } from "../lib/votes";
