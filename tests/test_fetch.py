@@ -133,3 +133,9 @@ def test_fetch_writes_fetch_log(fake_server, tmp_path):
     lines = [json.loads(l) for l in (tmp_path / "_fetch_log.jsonl").read_text(encoding="utf-8").splitlines()]
     assert [(l["count"], l["from_cache"]) for l in lines] == [(5, False), (5, True)]
     assert {"url", "service", "name", "bytes", "pulled_at", "fields_hash"} <= set(lines[0])
+
+
+def test_fetch_sets_pulled_at_attr(fake_server, tmp_path):
+    layer_server(fake_server)
+    first = fetch(REF, cache_dir=tmp_path).attrs["pulled_at"]
+    assert first and fetch(REF, cache_dir=tmp_path).attrs["pulled_at"] == first

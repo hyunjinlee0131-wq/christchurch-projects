@@ -1,0 +1,8 @@
+[layers.park]
+service = "GreenAsset"
+name = "Park"
+exclude = ["OwnerName"]
+
+[layers.seat]
+service = "Furniture"
+name = "Seat"

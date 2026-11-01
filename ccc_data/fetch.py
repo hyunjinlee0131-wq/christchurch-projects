@@ -76,6 +76,7 @@ def fetch(ref: LayerRef, *, exclude_fields: Iterable[str] = (), refresh: bool = 
     if cached is not None and cached[1].get("fields_hash") == fields_hash:
         gdf, meta = cached
         _log(cache_dir, ref, len(gdf), path, meta["pulled_at"], fields_hash, from_cache=True)
+        gdf.attrs["pulled_at"] = meta["pulled_at"]
         return gdf
 
     try:
@@ -97,6 +98,7 @@ def fetch(ref: LayerRef, *, exclude_fields: Iterable[str] = (), refresh: bool = 
     _meta_path(path).write_text(json.dumps({"pulled_at": pulled_at, "count": len(gdf), "fields_hash": fields_hash,
                                             "url": ref.url}), encoding="utf-8")
     _log(cache_dir, ref, len(gdf), path, pulled_at, fields_hash, from_cache=False)
+    gdf.attrs["pulled_at"] = pulled_at
     return gdf
 
 

@@ -4,19 +4,30 @@ Date: 2026-11-01 · Companion to `docs/superpowers/specs/2026-11-01-ccc-spatial-
 
 ## 0. Status: code vs intention
 
-This document has to match both the code and the intentions, so it starts with what actually exists. **The design is not yet approved, so the pipeline itself has not been built.**
+This document has to match both the code and the intentions, so it starts with what actually exists (updated after the foundation plan, `docs/superpowers/plans/2026-11-01-foundation-ccc-data.md`).
 
 | Piece | Status | Where |
 |---|---|---|
-| Catalog stage: Hub catalog → `datasets.md` | **Exists** | `build.py` |
-| Layer survey: record counts and field checks for the 10 projects | **Exploratory only** (throwaway script, not in repo) | session scratch; results recorded in the design §7 |
-| `ccc_data` package (fetch / cache / log) | Planned | `ccc_data/` |
-| Per-project pipelines | Planned | `projects/<slug>/pipeline.py` |
-| Refresh workflow | Planned | `.github/workflows/refresh.yml` |
-
-**Known gap in existing code:** `build.py` reads `items_*.json` pages from its working directory, and those were downloaded by hand with `curl`. It is therefore not yet reproducible on its own. That breaks principle P3 below. The fix, in build step 1, is to move catalog fetching into `ccc_data.catalog()` and have `build.py` call it.
+| Catalog stage: Hub catalog → `datasets.md` | **Exists**, reproducible | `ccc_data.catalog()`, `build.py` |
+| HTTP client (SSL fix, retries, ArcGIS error bodies) | **Exists** | `ccc_data/http.py` |
+| Resolve by name (§3 step 2) | **Exists** | `ccc_data.resolve()` |
+| Fetch, validate, cache, log (§3 steps 3–4) | **Exists** | `ccc_data.fetch()` |
+| Project helpers: `layers.toml`, transform log, web export, manifest (§3 steps 6, 9, 11) | **Exists** | `ccc_data/project.py` |
+| Profiling (§3 steps 5, 7) | Planned (plan 3) | — |
+| Per-project pipelines and `check()` (§3 steps 8, 10) | Planned (plans 2–4) | `projects/<slug>/pipeline.py` |
+| Refresh workflow | Planned (plan 2) | `.github/workflows/refresh.yml` |
 
 Sections marked **(exists)** describe code that runs today. Everything else describes intended behaviour, and the code must be made to match it.
+
+**Public API of `ccc_data` (exists):**
+- `catalog(*, page_size=100) -> list[dict]`
+- `resolve(service, name) -> LayerRef`
+- `fetch(ref, *, exclude_fields=(), refresh=False, max_age_days=35, page_size=None, cache_dir=Path("data/raw"), accept_schema_change=False) -> GeoDataFrame` (EPSG:2193; `.attrs["pulled_at"]` set)
+- `load_layers(slug, *, refresh=False, root=Path("projects")) -> dict[str, GeoDataFrame]`
+- `log_step(log, step, rows_in, rows_out, note="")`
+- `export_web(gdf, path, *, keep, max_mb=5.0, simplify_m=None) -> Path`
+- `write_manifest(slug, *, outputs, transform_log, root=Path("projects")) -> Path`
+- Exceptions: `ArcGISError`, `LayerNotFound`, `AmbiguousLayer`, `CountMismatch`, `SchemaDrift`
 
 ---
 
@@ -46,8 +57,8 @@ Sections marked **(exists)** describe code that runs today. Everything else desc
 | Output | Location | Committed? | Consumer |
 |---|---|---|---|
 | Category list of all datasets **(exists)** | `datasets.md` | yes | humans |
-| Raw layer cache (GeoParquet, EPSG:2193) | `data/raw/<service>__<layer>.parquet` | **no** (gitignored) | pipelines |
-| Fetch log (url, record count, bytes, pulled_at, field list hash) | `data/raw/_fetch_log.jsonl` | no | pipelines, refresh PR |
+| Raw layer cache (GeoParquet, EPSG:2193, plus `.meta.json`) **(exists)** | `data/raw/<service>__<layer>.parquet` | **no** (gitignored) | pipelines |
+| Fetch log (url, record count, cached file bytes, pulled_at, field list hash, from_cache) **(exists)** | `data/raw/_fetch_log.jsonl` | no | pipelines, refresh PR |
 | Clean data | `data/clean/<slug>/…parquet` | no | pipelines |
 | Profiling (serious projects) | `projects/<slug>/reports/profile_{pre,post}.html`, plus `profile_summary.md` | summary only | humans (baseline A4/A6) |
 | Data dictionary | `projects/<slug>/data_dictionary.md` | yes | humans (baseline A3) |
@@ -67,15 +78,15 @@ catalog ─► resolve ─► fetch+cache ─► validate raw ─► [pre-profil
 
 Bracketed steps run only for serious projects (baseline A4/A6); fun projects skip them (user override).
 
-1. **Catalog** **(exists as `build.py`; to move into `ccc_data`)**: page through the Hub search API **with a stable sort** (`sortBy=properties.created`). Without it, pages overlapped and returned only 386 unique datasets out of 483 (observed bug, fixed). Normalise category typos (`Utilties`, `Green Assets`).
-2. **Resolve:** for each `(service, layer name)` in `layers.toml`, read the live service listing (`…/FeatureServer?f=json`) and find the layer id. Catalog URLs are not trusted: "Walking Track" no longer exists, and "River Urban Impact" moved to `WaterCharacteristic/22`. A missing layer fails loudly with a list of the nearest names.
-3. **Fetch + cache:**
+1. **Catalog** **(exists: `ccc_data.catalog()`, used by `build.py`)**: page through the Hub search API **with a stable sort** (`sortBy=properties.created`). Without it, pages overlapped and returned only 386 unique datasets out of 483 (observed bug, fixed). Normalise category typos (`Utilties`, `Green Assets`).
+2. **Resolve** **(exists)**: for each `(service, layer name)` in `layers.toml`, read the live service listing (`…/FeatureServer?f=json`) and find the layer id. Catalog URLs are not trusted: "Walking Track" no longer exists, and "River Urban Impact" moved to `WaterCharacteristic/22`. A missing layer fails loudly with a list of the nearest names.
+3. **Fetch + cache** **(exists)**:
    - Page by `resultOffset` / `resultRecordCount` (≤ `maxRecordCount`), ordered by the layer's own `objectIdField`, in native EPSG:2193.
    - Retry with backoff.
    - HTTPS keeps certificate verification on and clears **only** `ssl.VERIFY_X509_STRICT` (the server's CA lacks a critical Basic Constraints flag).
    - Results are cached as GeoParquet, keyed by layer. A cache hit is reused unless `--refresh` is passed or the cache is older than the configured max age.
    - Each fetch appends to `_fetch_log.jsonl`.
-4. **Validate raw:** fetched rows must equal `returnCountOnly`; expected fields must be present; the field-list hash is compared with the last run. Schema drift stops the pipeline.
+4. **Validate raw** **(exists)**: fetched rows must equal `returnCountOnly`; the field-list hash is compared with the last pull (a change raises `SchemaDrift`). Schema drift stops the pipeline.
 5. **Pre-profile** (serious): ydata-profiling report plus `profile_summary.md` (types, missingness, cardinality, outliers, leakage notes, hypotheses).
 6. **Clean:** project-specific transforms written as small named functions. Each call appends `(step, rows_in, rows_out, note)` to a transformation log saved with the outputs. No silent row drops.
 7. **Post-profile + go/no-go** (serious): re-profile, diff distributions against pre-clean, and write an explicit `GO` / `NO-GO` line into `profile_summary.md`. A `NO-GO` stops the run before analysis.
