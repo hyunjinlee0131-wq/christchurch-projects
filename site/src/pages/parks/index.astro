@@ -3,6 +3,7 @@ import Base from "../../layouts/Base.astro";
 import ParkMap from "../../components/ParkMap.astro";
 import Feedback from "../../components/Feedback.astro";
 import data from "../../data/best_park/parks.json";
+import { SORTS } from "../../lib/parklist";
 
 const votingConfigured = Boolean(import.meta.env.PUBLIC_SUPABASE_URL && import.meta.env.PUBLIC_SUPABASE_ANON_KEY);
 
@@ -20,62 +21,10 @@ const TOP_N = 10;
 >
   <div class="wrap">
     <h1>Best Park in Christchurch</h1>
-    <p class="lede">The #1 park by the data is <a href={`${base}parks/${top.slug}/`}><strong>{top.name}</strong></a>.
-      Ranked from {n} parks using council data on what's actually in them.</p>
-
-
-    <section aria-labelledby="list-h">
-      <h2 id="list-h">Ranking</h2>
-    <details class="card controls">
-      <summary><h2 id="w-h">What matters to you?</h2> <span class="muted">Re-rank every park for you</span></summary>
-      <p class="muted">Slide to re-rank every park for you. 0 = don't care, 3 = very important.</p>
-      <div class="sliders">
-        {data.factors.map((f) => (
-          <label class="slider">
-            <span>{f.label}</span>
-            <input type="range" min="0" max="3" step="0.5" value={String((data.weights as Record<string, number>)[f.key])}
-                   data-key={f.key} aria-describedby="w-h" />
-            <output>{(data.weights as Record<string, number>)[f.key]}</output>
-          </label>
-        ))}
-      </div>
-      <div class="actions">
-        <button type="button" id="reset">Reset to default</button>
-        <button type="button" id="near-me">Parks near me</button>
-      </div>
-      <p id="status" class="muted" role="status" aria-live="polite"></p>
-    </details>
-      <div class="table-wrap">
-        <table id="rank-table" class="collapsed">
-          <thead>
-            <tr><th scope="col">Rank</th><th scope="col">Park</th><th scope="col">Score</th>
-                <th scope="col" class="col-you" hidden>Your rank</th><th scope="col" class="col-dist" hidden>Distance</th>
-                <th scope="col" class="col-type">Type</th><th scope="col" class="col-area">Size</th></tr>
-          </thead>
-          <tbody>
-            {parks.map((p) => (
-              <tr data-id={p.id} data-lat={p.lat} data-lon={p.lon}>
-                <td class="rank">{p.rank}</td>
-                <td><a href={`${base}parks/${p.slug}/`}>{p.name}</a></td>
-                <td><span class="bar" style={`--w:${p.score}`} aria-hidden="true"></span> <span class="score">{p.score}</span></td>
-                <td class="col-you" hidden></td>
-                <td class="col-dist" hidden></td>
-                <td class="col-type muted">{p.type}</td>
-                <td class="col-area muted">{p.area_ha.toFixed(1)} ha</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <button type="button" id="show-all" aria-controls="rank-table" aria-expanded="false">Show all {n} parks</button>
-      <noscript><style>#rank-table.collapsed tbody tr:nth-child(n+11) { display: table-row; } #show-all { display: none; }</style></noscript>
-      <Feedback project="best_park" itemId="ranking" question="Was this ranking useful?" />
-    </section>
 
     <section class="card people" aria-labelledby="people-h">
       <h2 id="people-h">People's Choice</h2>
-      <p class="muted">The data can't measure everything. Vote for the parks you love on each park's page — this list is
-        ranked by votes only, shown next to (never mixed into) the data score.</p>
+      <p class="muted">The data can't measure everything.</p>
       <div id="people" data-min="20">
         <p class="muted" id="people-msg">{votingConfigured ? "Loading votes…" : "Voting opens soon."}</p>
         <ol id="podium" class="podium" aria-label="People's Choice top 3" hidden></ol>
@@ -92,89 +41,124 @@ const TOP_N = 10;
       </div>
     </section>
 
-    <ParkMap />
-
-    <section class="card method" aria-labelledby="how-h">
-      <h2 id="how-h">How this was calculated</h2>
-      <p>For every park we count what the council records inside it (or within 20 m of its edge):</p>
-      <ul>
-        {data.factors.map((f) => <li>{f.label} — weight {(data.weights as Record<string, number>)[f.key]}</li>)}
-      </ul>
-      <p>Each count becomes a percentile against all parks (having none scores 0). The score is the weighted
-        average of the percentiles, from 0 to 100. Tree cover is trees per hectare, capped at 200. It only counts trees
-        the council records individually, so forests and large natural areas (like Bottle Lake Forest) score low on trees.</p>
-      <p>Included: local, community, sports, regional, garden &amp; heritage and red-zone parks of at least 0.1 ha.
-        Utility land, cemeteries and the plant nursery are left out.</p>
-      <p><strong>Not counted:</strong> toilets (not in the council's open data), shade, views, cafés and how busy a park is —
-        that's what the votes are for.</p>
+    <section class="ranking" aria-labelledby="list-h">
+      <h2 id="list-h">Ranking</h2>
+      <p class="muted">The #1 park by the data is <a href={`${base}parks/${top.slug}/`}><strong>{top.name}</strong></a>,
+        out of {n} parks ranked on what the council records in them.</p>
+      <div class="toolbar">
+        <label class="search">
+          <span class="sr-only">Search parks</span>
+          <input type="search" id="park-search" placeholder="Search parks by name" autocomplete="off" aria-label="Search parks" />
+        </label>
+        <label class="sort">
+          <span>Sort by</span>
+          <select id="sort-by" aria-label="Sort by">
+            {SORTS.map((s) => <option value={s.key}>{s.label}</option>)}
+          </select>
+        </label>
+        <button type="button" id="near-me">📍 Parks near me</button>
+      </div>
+      <p id="status" class="muted" role="status" aria-live="polite"></p>
+      <div class="table-wrap">
+        <table id="rank-table">
+          <thead>
+            <tr><th scope="col">#</th><th scope="col">Park</th><th scope="col">Score</th>
+                <th scope="col" class="col-factor" hidden></th><th scope="col" class="col-dist" hidden>Distance</th>
+                <th scope="col" class="col-type">Type</th><th scope="col" class="col-area">Size</th></tr>
+          </thead>
+          <tbody>
+            {parks.map((p, i) => (
+              <tr data-id={p.id} hidden={i >= TOP_N}>
+                <td class="rank">{p.rank}</td>
+                <td class="name"><a href={`${base}parks/${p.slug}/`}>{p.name}</a></td>
+                <td><span class="bar" style={`--w:${p.score}`} aria-hidden="true"></span> <span class="score">{p.score}</span></td>
+                <td class="col-factor" hidden></td>
+                <td class="col-dist" hidden></td>
+                <td class="col-type muted">{p.type}</td>
+                <td class="col-area muted">{p.area_ha.toFixed(1)} ha</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" id="show-all" aria-controls="rank-table" aria-expanded="false">Show all {n} parks</button>
+      <noscript><style>#rank-table tbody tr[hidden] { display: table-row; } #show-all, .toolbar { display: none; }</style></noscript>
+      <Feedback project="best_park" itemId="ranking" question="Was this ranking useful?" />
     </section>
+
+    <ParkMap />
   </div>
 </Base>
 
 <script>
-  import { allZero, rankParks, type Weights } from "../../lib/scoring";
+  import { formatFactor, matchesName, sortParks, SORTS, type SortKey } from "../../lib/parklist";
   import { track } from "../../lib/analytics";
 
   const base = import.meta.env.BASE_URL;
+  const TOP_N = 10;
   const table = document.getElementById("rank-table") as HTMLTableElement;
   const tbody = table.tBodies[0];
   const rows = new Map<string, HTMLTableRowElement>();
   for (const r of Array.from(tbody.rows)) rows.set(r.dataset.id!, r);
   const status = document.getElementById("status")!;
-  const sliders = Array.from(document.querySelectorAll<HTMLInputElement>(".slider input"));
   const showAll = document.getElementById("show-all") as HTMLButtonElement;
+  const search = document.getElementById("park-search") as HTMLInputElement;
+  const sortBy = document.getElementById("sort-by") as HTMLSelectElement;
 
-  type Park = { id: string; pct: Record<string, number>; area_ha: number; rank: number; lat: number; lon: number };
-  let cache: { weights: Weights; parks: Park[] } | null = null;
-  const load = async () => (cache ??= await (await fetch(`${base}data/best_park/parks.json`)).json());
+  type Park = { id: string; name: string; slug: string; rank: number; area_ha: number; lat: number; lon: number; raw: Record<string, number> };
+  let cache: { parks: Park[] } | null = null;
+  const load = async () => {
+    try {
+      return (cache ??= await (await fetch(`${base}data/best_park/parks.json`)).json());
+    } catch {
+      status.textContent = "Couldn't load park details — try reloading the page.";
+      throw new Error("parks.json failed");
+    }
+  };
 
   const setCols = (cls: string, on: boolean) =>
     table.querySelectorAll<HTMLElement>(`.${cls}`).forEach((c) => (c.hidden = !on));
 
-  const order = (ids: string[]) => {
+  // Current view: an ordered list of park ids (by a sort or by distance), filtered by the search box.
+  let orderIds: string[] = Array.from(rows.keys());
+  let expanded = false;
+
+  const render = () => {
+    const q = search.value;
     const frag = document.createDocumentFragment();
-    for (const id of ids) frag.append(rows.get(id)!);
-    tbody.append(frag);
-  };
-
-  const weightsNow = (): Weights => Object.fromEntries(sliders.map((s) => [s.dataset.key!, Number(s.value)]));
-
-  let timer: number | undefined;
-  const rerank = async () => {
-    const d = await load();
-    const w = weightsNow();
-    const isDefault = sliders.every((s) => Number(s.value) === d.weights[s.dataset.key!]);
-    if (allZero(w)) {
-      status.textContent = "Pick at least one thing you care about — showing the default ranking.";
-      setCols("col-you", false);
-      order([...d.parks].sort((a, b) => a.rank - b.rank).map((p) => p.id));
-      return;
-    }
-    const ranked = rankParks(d.parks, w, d.weights);
-    for (const p of ranked) rows.get(p.id)!.querySelector(".col-you")!.textContent = String(p.personalRank);
-    setCols("col-you", !isDefault);
-    setCols("col-dist", false);
-    order(ranked.map((p) => p.id));
-    status.textContent = isDefault ? "" : `Re-ranked for you. Your #1: ${rows.get(ranked[0].id)!.cells[1].textContent}.`;
-    clearTimeout(timer);
-    timer = window.setTimeout(() => track("reweight", Object.fromEntries(Object.entries(w).map(([k, v]) => [k, v]))), 1500);
-  };
-
-  for (const s of sliders) {
-    s.addEventListener("input", () => {
-      (s.nextElementSibling as HTMLOutputElement).value = s.value;
-      rerank();
+    let shown = 0, matched = 0;
+    orderIds.forEach((id, i) => {
+      const row = rows.get(id)!;
+      (row.querySelector(".rank") as HTMLElement).textContent = String(i + 1);
+      const hit = matchesName(row.querySelector(".name")!.textContent ?? "", q);
+      if (hit) matched++;
+      row.hidden = !hit || (!q && !expanded && shown >= TOP_N);
+      if (!row.hidden) shown++;
+      frag.append(row);
     });
-  }
+    tbody.append(frag);
+    showAll.hidden = Boolean(q);
+    if (q) status.textContent = matched ? `${matched} park${matched === 1 ? "" : "s"} match “${q.trim()}”.` : `No parks match “${q.trim()}”.`;
+  };
 
-  document.getElementById("reset")!.addEventListener("click", async () => {
+  const applySort = async (key: SortKey) => {
     const d = await load();
-    for (const s of sliders) {
-      s.value = String(d.weights[s.dataset.key!]);
-      (s.nextElementSibling as HTMLOutputElement).value = s.value;
+    const sorted = sortParks(d.parks, key);
+    const sort = SORTS.find((s) => s.key === key)!;
+    if (key !== "score") {
+      table.querySelector("th.col-factor")!.textContent = sort.column;
+      for (const p of sorted) rows.get(p.id)!.querySelector(".col-factor")!.textContent = formatFactor(key, p.raw[key] ?? 0);
     }
-    rerank();
-  });
+    setCols("col-factor", key !== "score");
+    setCols("col-dist", false);
+    orderIds = sorted.map((p) => p.id);
+    if (!search.value) status.textContent = key === "score" ? "" : `Sorted by: ${sort.label.toLowerCase()}.`;
+    render();
+    if (key !== "score") track("reweight", { sort: key });
+  };
+
+  sortBy.addEventListener("change", () => applySort(sortBy.value as SortKey));
+  search.addEventListener("input", () => render());
 
   document.getElementById("near-me")!.addEventListener("click", () => {
     if (!navigator.geolocation) { status.textContent = "Your browser can't share location."; return; }
@@ -191,11 +175,21 @@ const TOP_N = 10;
       const near = d.parks.map((p) => ({ id: p.id, km: dist(p) })).sort((a, b) => a.km - b.km);
       for (const p of near) rows.get(p.id)!.querySelector(".col-dist")!.textContent = `${p.km.toFixed(1)} km`;
       setCols("col-dist", true);
-      order(near.map((p) => p.id));
+      setCols("col-factor", false);
+      sortBy.value = "score";
+      orderIds = near.map((p) => p.id);
+      render();
       status.textContent = "Sorted by distance from you. Your location is not stored or sent anywhere.";
       track("near_me");
     }, () => { status.textContent = "Location permission was denied — the ranking still works without it."; },
     { timeout: 10000 });
+  });
+
+  showAll.addEventListener("click", () => {
+    expanded = !expanded;
+    showAll.setAttribute("aria-expanded", String(expanded));
+    showAll.textContent = expanded ? "Show top 10" : `Show all ${rows.size} parks`;
+    render();
   });
 
   // People's Choice: votes only, beside the data ranking. Top 3 on a podium, #4–5 as smaller cards,
@@ -315,32 +309,29 @@ const TOP_N = 10;
     box.hidden = false;
   });
 
-  showAll.addEventListener("click", () => {
-    const expanded = table.classList.toggle("collapsed") === false;
-    showAll.setAttribute("aria-expanded", String(expanded));
-    showAll.textContent = expanded ? "Show top 10" : `Show all ${rows.size} parks`;
-  });
 </script>
 
 <style>
-  .lede { font-size: 1.15rem; }
-  .controls { margin: 0 0 1rem; }
-  .controls summary { cursor: pointer; display: flex; align-items: baseline; gap: 0.75rem; flex-wrap: wrap; min-height: 44px; }
-  .controls summary h2 { display: inline; font-size: 1.15rem; margin: 0; }
-  .sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.5rem 1.5rem; }
-  .slider { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0 0.5rem; }
-  .slider span { grid-column: 1 / -1; font-size: 0.95rem; }
-  .slider input { width: 100%; min-height: 32px; accent-color: var(--accent); }
-  .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
   .table-wrap { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--radius); }
   th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
   th { font-size: 0.85rem; color: var(--muted); }
   .rank { font-weight: 700; width: 3.5rem; }
-  #rank-table.collapsed tbody tr:nth-child(n+11) { display: none; }
   .bar { display: inline-block; height: 8px; width: calc(var(--w) * 0.6px); max-width: 60px; background: var(--accent); border-radius: 4px; }
   #show-all { margin-top: 0.75rem; }
-  .method, .people { margin-top: 2rem; }
+  .people { margin: 1.5rem 0 2rem; }
+  .ranking { margin-bottom: 2rem; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 1rem 0 0.5rem; }
+  .toolbar .search { flex: 1 1 220px; }
+  .toolbar input[type="search"], .toolbar select {
+    width: 100%; min-height: 44px; font: inherit; padding: 0.4rem 0.75rem;
+    border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text);
+  }
+  .toolbar .sort { display: flex; align-items: center; gap: 0.5rem; flex: 0 1 auto; }
+  .toolbar .sort span { white-space: nowrap; font-size: 0.95rem; }
+  .toolbar .sort select { width: auto; max-width: 100%; }
+  #near-me { white-space: nowrap; }
+  td.col-factor { font-weight: 600; white-space: nowrap; }
   /* People's Choice podium */
   .podium, .runners-up { list-style: none; padding: 0; margin: 1rem 0; display: grid; gap: 1rem; }
   .podium { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); align-items: end; }

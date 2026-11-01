@@ -27,7 +27,10 @@ test("home shows Best Park card with #1 park", async ({ page }) => {
 
 test("leaderboard shows a ranked list without any input", async ({ page }) => {
   await page.goto("parks/");
-  await expect(page.locator("#rank-table tbody tr").first()).toBeInViewport(); // result on the first screen
+  // People's Choice comes first (user decision); the ranking follows it without any input needed
+  await expect(page.getByRole("heading", { name: "People's Choice" })).toBeInViewport();
+  await expect(page.locator("h2").nth(0)).toHaveText("People's Choice");
+  await expect(page.locator("h2").nth(1)).toHaveText("Ranking");
   const rows = page.locator("#rank-table tbody tr:visible");
   await expect(rows).toHaveCount(10);
   await expect(rows.first().locator(".rank")).toHaveText("1");
@@ -40,24 +43,56 @@ test("show all expands the list", async ({ page }) => {
   expect(await page.locator("#rank-table tbody tr:visible").count()).toBeGreaterThan(300);
 });
 
-test("sliders re-rank the list", async ({ page }) => {
+test("sort by a factor reorders the list and shows that factor", async ({ page }) => {
   await page.goto("parks/");
-  await page.locator("details.controls summary").click();
-  const firstBefore = await page.locator("#rank-table tbody tr").first().getAttribute("data-id");
-  for (const key of ["play", "seating", "bbq", "water", "sport", "trees", "size"]) await page.locator(`input[data-key=${key}]`).fill("0");
-  await page.locator("input[data-key=dogs]").fill("3");
-  await expect(page.locator("th.col-you")).toBeVisible();
-  await expect(page.locator("#status")).toContainText("Re-ranked");
-  const firstAfter = await page.locator("#rank-table tbody tr").first().getAttribute("data-id");
-  expect(firstAfter).not.toBe(firstBefore);
+  await page.getByLabel("Sort by").selectOption("bbq");
+  await expect(page.locator("th.col-factor")).toHaveText("Barbecues");
+  const values = await page.locator("#rank-table tbody tr:visible td.col-factor").allTextContents();
+  const n = values.map((v) => parseInt(v, 10));
+  expect(n.length).toBe(10);
+  expect(n).toEqual([...n].sort((a, b) => b - a));
+  expect(n[0]).toBeGreaterThan(0);
+  await expect(page.locator("#rank-table tbody tr:visible").first().locator(".rank")).toHaveText("1");
+  await page.getByLabel("Sort by").selectOption("score");
+  await expect(page.locator("th.col-factor")).toBeHidden();
 });
 
-test("all-zero weights show a message instead of breaking", async ({ page }) => {
+test("search finds parks by name", async ({ page }) => {
   await page.goto("parks/");
-  await page.locator("details.controls summary").click();
-  for (const s of await page.locator(".slider input").all()) await s.fill("0");
-  await expect(page.locator("#status")).toContainText("Pick at least one");
-  await expect(page.locator("#rank-table tbody tr").first().locator(".rank")).toHaveText("1");
+  await page.getByLabel("Search parks").fill("hagley");
+  const names = await page.locator("#rank-table tbody tr:visible td.name").allTextContents();
+  expect(names.length).toBeGreaterThan(0);
+  expect(names.every((n) => /hagley/i.test(n))).toBe(true);
+  await page.getByLabel("Search parks").fill("zzzz-no-such-park");
+  await expect(page.locator("#status")).toContainText("No parks match");
+});
+
+test("parks near me sorts by distance", async ({ page, context }) => {
+  await context.grantPermissions(["geolocation"]);
+  await context.setGeolocation({ latitude: -43.531, longitude: 172.6206 }); // Cathedral Square
+  await page.goto("parks/");
+  await page.getByRole("button", { name: "Parks near me" }).click();
+  await expect(page.locator("th.col-dist")).toBeVisible();
+  const km = (await page.locator("#rank-table tbody tr:visible td.col-dist").allTextContents()).map(parseFloat);
+  expect(km).toEqual([...km].sort((a, b) => a - b));
+  expect(km[0]).toBeLessThan(1.5);
+});
+
+test("sliders and method section are gone", async ({ page }) => {
+  await page.goto("parks/");
+  await expect(page.locator(".slider")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "How this was calculated" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "What matters to you?" })).toHaveCount(0);
+});
+
+test("keyboard: search, sort and near-me reachable by Tab", async ({ page }) => {
+  await page.goto("parks/");
+  const seen = new Set<string>();
+  for (let i = 0; i < 15; i++) {
+    await page.keyboard.press("Tab");
+    seen.add(await page.evaluate(() => document.activeElement?.id ?? ""));
+  }
+  expect([...seen]).toEqual(expect.arrayContaining(["park-search", "sort-by", "near-me"]));
 });
 
 test("park page has OG tags with absolute URLs", async ({ page }) => {
@@ -100,19 +135,6 @@ test("no serious or critical axe violations on a park page", async ({ page }) =>
   const res = await new AxeBuilder({ page }).analyze();
   const bad = res.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
   expect(bad.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
-});
-
-test("keyboard: sliders and share button reachable by Tab", async ({ page, browserName }) => {
-  await page.goto("parks/");
-  await page.locator("details.controls summary").focus();
-  await page.keyboard.press("Enter"); // open with the keyboard
-  const seen = new Set<string>();
-  for (let i = 0; i < 40; i++) {
-    await page.keyboard.press("Tab");
-    seen.add(await page.evaluate(() => (document.activeElement as HTMLElement)?.dataset?.key ?? document.activeElement?.id ?? ""));
-  }
-  expect(seen.has("play")).toBe(true);
-  expect(seen.has("near-me")).toBe(true);
 });
 
 test("map renders parks", async ({ page }) => {
