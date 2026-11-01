@@ -23,8 +23,11 @@ class SchemaDrift(Exception):
     pass
 
 
-def cache_path(ref: LayerRef, cache_dir: Path) -> Path:
-    return Path(cache_dir) / f"{ref.service}__{normalise(ref.name)}.parquet"
+def cache_path(ref: LayerRef, cache_dir: Path, exclude_fields: Iterable[str] = ()) -> Path:
+    # Each exclude set gets its own file, so a fuller cached pull can never leak excluded fields (P9).
+    x = sorted(set(exclude_fields))
+    suffix = f"__x{hashlib.sha256(','.join(x).encode()).hexdigest()[:8]}" if x else ""
+    return Path(cache_dir) / f"{ref.service}__{normalise(ref.name)}{suffix}.parquet"
 
 
 def _meta_path(path: Path) -> Path:
@@ -49,19 +52,28 @@ def _download(ref: LayerRef, out_fields: str, page_size: int) -> gpd.GeoDataFram
     query = f"{ref.url}/query"
     count = get_json(query, {"where": "1=1", "returnCountOnly": "true", "f": "json"})["count"]
     fmt = "geojson" if ref.has_geometry else "json"
+    # ponytail: all features held in memory (~1-2 GB for Building's 237k polygons); concat per-page frames if that bites
     feats: list[dict] = []
-    for offset in range(0, count, page_size):
+    while len(feats) < count:
         page = get_json(query, {"where": "1=1", "outFields": out_fields, "orderByFields": ref.object_id_field,
-                                "resultOffset": offset, "resultRecordCount": page_size, "f": fmt})
-        feats += page.get("features") or []
+                                "resultOffset": len(feats), "resultRecordCount": page_size, "f": fmt})
+        got = page.get("features") or []
+        if not got:
+            break
+        feats += got  # advance by rows actually returned: servers may cap pages below the request
     if len(feats) != count:
         raise CountMismatch(f"{ref.service}/{ref.name}: server count {count}, fetched {len(feats)}")
     if ref.has_geometry:
         if not feats:
             return gpd.GeoDataFrame(geometry=[], crs=CRS)
-        return gpd.GeoDataFrame.from_features(feats, crs=4326).to_crs(CRS)
-    df = pd.DataFrame([f["attributes"] for f in feats])
-    return gpd.GeoDataFrame(df, geometry=[None] * len(df), crs=CRS)
+        gdf = gpd.GeoDataFrame.from_features(feats, crs=4326).to_crs(CRS)
+    else:
+        df = pd.DataFrame([f["attributes"] for f in feats])
+        gdf = gpd.GeoDataFrame(df, geometry=[None] * len(df), crs=CRS)
+    oid = ref.object_id_field
+    if oid in gdf.columns and not gdf[oid].is_unique:
+        raise CountMismatch(f"{ref.service}/{ref.name}: duplicate {oid} values; server may ignore resultOffset")
+    return gdf
 
 
 def fetch(ref: LayerRef, *, exclude_fields: Iterable[str] = (), refresh: bool = False, max_age_days: int = 35,
@@ -69,7 +81,7 @@ def fetch(ref: LayerRef, *, exclude_fields: Iterable[str] = (), refresh: bool = 
           accept_schema_change: bool = False) -> gpd.GeoDataFrame:
     cache_dir = Path(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
-    path = cache_path(ref, cache_dir)
+    path = cache_path(ref, cache_dir, exclude_fields)
     fields_hash = _fields_hash(ref.fields)
 
     cached = None if refresh else _read_cache(path, max_age_days)
@@ -89,7 +101,7 @@ def fetch(ref: LayerRef, *, exclude_fields: Iterable[str] = (), refresh: bool = 
 
     exclude = set(exclude_fields)
     out_fields = ",".join(f for f in ref.fields if f not in exclude) if exclude else "*"
-    gdf = _download(ref, out_fields, page_size or ref.max_record_count)
+    gdf = _download(ref, out_fields, min(page_size or ref.max_record_count, ref.max_record_count))
 
     pulled_at = datetime.now(timezone.utc).isoformat()
     tmp = path.with_suffix(".parquet.tmp")

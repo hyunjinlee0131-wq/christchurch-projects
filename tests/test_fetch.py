@@ -139,3 +139,44 @@ def test_fetch_sets_pulled_at_attr(fake_server, tmp_path):
     layer_server(fake_server)
     first = fetch(REF, cache_dir=tmp_path).attrs["pulled_at"]
     assert first and fetch(REF, cache_dir=tmp_path).attrs["pulled_at"] == first
+
+
+def test_cache_never_leaks_excluded_fields(fake_server, tmp_path):
+    layer_server(fake_server)
+    assert "OwnerName" in fetch(REF, cache_dir=tmp_path).columns  # someone fetched it unfiltered
+    assert "OwnerName" not in fetch(REF, exclude_fields=["OwnerName"], cache_dir=tmp_path).columns
+    assert "OwnerName" in fetch(REF, cache_dir=tmp_path).columns  # and the reverse
+
+
+def test_fetch_rejects_duplicate_rows(fake_server, tmp_path):
+    # server ignores resultOffset (no pagination support): every page is rows 0..1
+    def query(url):
+        if "returnCountOnly=true" in url:
+            return {"count": 4}
+        return {"type": "FeatureCollection", "features": [
+            {"type": "Feature", "geometry": {"type": "Point", "coordinates": [172.6, -43.5]}, "properties": {"OID": i}}
+            for i in (0, 1)]}
+    fake_server({f"{REF.url}/query": query})
+    with pytest.raises(CountMismatch, match="duplicate"):
+        fetch(REF, page_size=2, cache_dir=tmp_path)
+
+
+def test_fetch_follows_rows_actually_returned(fake_server, tmp_path):
+    # server caps every page at 2 rows even though 3 were requested
+    rows = list(range(5))
+    def query(url):
+        q = {k: v[0] for k, v in parse_qs(urlsplit(url).query).items()}
+        if q.get("returnCountOnly") == "true":
+            return {"count": 5}
+        off = int(q["resultOffset"])
+        return {"type": "FeatureCollection", "features": [
+            {"type": "Feature", "geometry": {"type": "Point", "coordinates": [172.6, -43.5]}, "properties": {"OID": i}}
+            for i in rows[off:off + 2]]}
+    fake_server({f"{REF.url}/query": query})
+    assert sorted(fetch(REF, page_size=3, cache_dir=tmp_path)["OID"]) == rows
+
+
+def test_fetch_clamps_page_size_to_server_max(fake_server, tmp_path):
+    s = layer_server(fake_server)
+    fetch(replace(REF, max_record_count=2), page_size=1000, cache_dir=tmp_path)
+    assert all("resultRecordCount=2&" in u for u in page_calls(s))

@@ -81,12 +81,13 @@ Bracketed steps run only for serious projects (baseline A4/A6); fun projects ski
 1. **Catalog** **(exists: `ccc_data.catalog()`, used by `build.py`)**: page through the Hub search API **with a stable sort** (`sortBy=properties.created`). Without it, pages overlapped and returned only 386 unique datasets out of 483 (observed bug, fixed). Normalise category typos (`Utilties`, `Green Assets`).
 2. **Resolve** **(exists)**: for each `(service, layer name)` in `layers.toml`, read the live service listing (`…/FeatureServer?f=json`) and find the layer id. Catalog URLs are not trusted: "Walking Track" no longer exists, and "River Urban Impact" moved to `WaterCharacteristic/22`. A missing layer fails loudly with a list of the nearest names.
 3. **Fetch + cache** **(exists)**:
-   - Page by `resultOffset` / `resultRecordCount` (≤ `maxRecordCount`), ordered by the layer's own `objectIdField`, in native EPSG:2193.
-   - Retry with backoff.
+   - Page by `resultOffset` / `resultRecordCount` (clamped to `maxRecordCount`), ordered by the layer's own `objectIdField`. The offset advances by the rows actually returned, because servers may cap a page below the request.
+   - Geometry layers are requested as GeoJSON (WGS84, EPSG:4326) and reprojected to EPSG:2193 on arrival; tables are requested as JSON.
+   - Retry with backoff on network errors, dropped connections, HTTP 5xx, and ArcGIS error bodies with codes 5xx/498/499. Other error bodies raise `ArcGISError` at once.
    - HTTPS keeps certificate verification on and clears **only** `ssl.VERIFY_X509_STRICT` (the server's CA lacks a critical Basic Constraints flag).
-   - Results are cached as GeoParquet, keyed by layer. A cache hit is reused unless `--refresh` is passed or the cache is older than the configured max age.
+   - Results are cached as GeoParquet, keyed by layer **and exclude set**, so an unfiltered pull can never leak excluded fields (P9). A cache hit is reused unless `refresh=True` or the cache is older than `max_age_days` (35).
    - Each fetch appends to `_fetch_log.jsonl`.
-4. **Validate raw** **(exists)**: fetched rows must equal `returnCountOnly`; the field-list hash is compared with the last pull (a change raises `SchemaDrift`). Schema drift stops the pipeline.
+4. **Validate raw** **(exists)**: fetched rows must equal `returnCountOnly`; object IDs must be unique (catches servers that ignore `resultOffset`); the field-list hash is compared with the last pull (a change raises `SchemaDrift`). Any failure stops the pipeline.
 5. **Pre-profile** (serious): ydata-profiling report plus `profile_summary.md` (types, missingness, cardinality, outliers, leakage notes, hypotheses).
 6. **Clean:** project-specific transforms written as small named functions. Each call appends `(step, rows_in, rows_out, note)` to a transformation log saved with the outputs. No silent row drops.
 7. **Post-profile + go/no-go** (serious): re-profile, diff distributions against pre-clean, and write an explicit `GO` / `NO-GO` line into `profile_summary.md`. A `NO-GO` stops the run before analysis.

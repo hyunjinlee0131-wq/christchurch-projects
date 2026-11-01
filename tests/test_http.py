@@ -34,3 +34,14 @@ def test_get_json_gives_up_after_retries(fake_server):
     with pytest.raises(URLError):
         get_json("https://x/q", retries=3)
     assert len(fake_server.calls) == 3
+
+
+def test_get_json_retries_connection_drop_during_read(fake_server):
+    import http.client
+    fake_server({"https://x/q": [http.client.IncompleteRead(b""), ConnectionResetError(), {"ok": 1}]})
+    assert get_json("https://x/q", retries=3) == {"ok": 1}
+
+
+def test_get_json_retries_5xx_error_body(fake_server):
+    fake_server({"https://x/q": [{"error": {"code": 500, "message": "busy"}}, {"ok": 1}]})
+    assert get_json("https://x/q", retries=3) == {"ok": 1}

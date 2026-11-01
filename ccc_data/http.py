@@ -1,4 +1,5 @@
 """The one place that talks to the network."""
+import http.client
 import json
 import ssl
 import time
@@ -30,18 +31,20 @@ _sleep = time.sleep
 def get_json(url: str, params: dict | None = None, *, retries: int = 3, timeout: float = 60.0) -> dict:
     full = f"{url}?{urlencode(params)}" if params else url
     for attempt in range(retries):
+        last = attempt == retries - 1
         try:
-            body = _open(full, timeout)
-            break
+            data = json.loads(_open(full, timeout))
         except HTTPError as e:
-            if e.code < 500 or attempt == retries - 1:
+            if e.code < 500 or last:
                 raise
-        except (URLError, TimeoutError):
-            if attempt == retries - 1:
+        except (URLError, TimeoutError, http.client.HTTPException, ConnectionError):
+            if last:
                 raise
+        else:
+            if not (isinstance(data, dict) and "error" in data):
+                return data
+            err = data["error"]
+            code = err.get("code") or 0
+            if last or not (code >= 500 or code in (498, 499)):  # 4xx bodies won't fix themselves
+                raise ArcGISError(f"{err.get('message', '')} {' '.join(err.get('details') or [])} ({full})".strip())
         _sleep(0.5 * 2**attempt)
-    data = json.loads(body)
-    if isinstance(data, dict) and "error" in data:
-        err = data["error"]
-        raise ArcGISError(f"{err.get('message', '')} {' '.join(err.get('details') or [])} ({full})".strip())
-    return data
