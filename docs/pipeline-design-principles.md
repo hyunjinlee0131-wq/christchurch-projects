@@ -14,16 +14,16 @@ This document has to match both the code and the intentions, so it starts with w
 | Fetch, validate, cache, log (§3 steps 3–4) | **Exists** | `ccc_data.fetch()` |
 | Project helpers: `layers.toml`, transform log, web export, manifest (§3 steps 6, 9, 11) | **Exists** | `ccc_data/project.py` |
 | Profiling (§3 steps 5, 7) | Planned (plan 3) | — |
-| Per-project pipelines and `check()` (§3 steps 8, 10) | Planned (plans 2–4) | `projects/<slug>/pipeline.py` |
-| Refresh workflow | Planned (plan 2) | `.github/workflows/refresh.yml` |
+| Per-project pipelines and `check()` (§3 steps 8, 10) | **Exists** for `best_park`; others planned (plans 3–4) | `projects/<slug>/pipeline.py` |
+| Refresh workflow (monthly, opens a PR) | **Exists** | `.github/workflows/refresh.yml` |
 
 Sections marked **(exists)** describe code that runs today. Everything else describes intended behaviour, and the code must be made to match it.
 
 **Public API of `ccc_data` (exists):**
 - `catalog(*, page_size=100) -> list[dict]`
 - `resolve(service, name) -> LayerRef`
-- `fetch(ref, *, exclude_fields=(), refresh=False, max_age_days=35, page_size=None, cache_dir=Path("data/raw"), accept_schema_change=False) -> GeoDataFrame` (EPSG:2193; `.attrs["pulled_at"]` set)
-- `load_layers(slug, *, refresh=False, root=Path("projects")) -> dict[str, GeoDataFrame]`
+- `fetch(ref, *, fields=None, exclude_fields=(), refresh=False, max_age_days=35, page_size=None, cache_dir=Path("data/raw"), accept_schema_change=False) -> GeoDataFrame` (EPSG:2193; `.attrs["pulled_at"]` set)
+- `load_layers(slug, *, refresh=False, root=Path("projects")) -> dict[str, GeoDataFrame]` (each `layers.toml` entry: `service`, `name`, optional `fields` include-list and `exclude`)
 - `log_step(log, step, rows_in, rows_out, note="")`
 - `export_web(gdf, path, *, keep, max_mb=5.0, simplify_m=None) -> Path`
 - `write_manifest(slug, *, outputs, transform_log, root=Path("projects")) -> Path`
@@ -81,11 +81,12 @@ Bracketed steps run only for serious projects (baseline A4/A6); fun projects ski
 1. **Catalog** **(exists: `ccc_data.catalog()`, used by `build.py`)**: page through the Hub search API **with a stable sort** (`sortBy=properties.created`). Without it, pages overlapped and returned only 386 unique datasets out of 483 (observed bug, fixed). Normalise category typos (`Utilties`, `Green Assets`).
 2. **Resolve** **(exists)**: for each `(service, layer name)` in `layers.toml`, read the live service listing (`…/FeatureServer?f=json`) and find the layer id. Catalog URLs are not trusted: "Walking Track" no longer exists, and "River Urban Impact" moved to `WaterCharacteristic/22`. A missing layer fails loudly with a list of the nearest names.
 3. **Fetch + cache** **(exists)**:
-   - Page by `resultOffset` / `resultRecordCount` (clamped to `maxRecordCount`), ordered by the layer's own `objectIdField`. The offset advances by the rows actually returned, because servers may cap a page below the request.
+   - Page by object id (`where <oid> > <last id>`, `resultRecordCount` clamped to `maxRecordCount`, ordered by the layer's own `objectIdField`). Deep `resultOffset` pages slow down with depth (Tree: 12.3 s vs 1.3 s per page at row 150k), and advancing by the last id returned also copes with servers that cap pages.
+   - Request only the columns a project needs (`fields` in `layers.toml`; `[]` = id + geometry). Full-width pulls of wide, large layers time out on the CCC server (Tree: 30 s per 200 rows with all 32 columns vs 2.4 s per 2,000 with the id only).
    - Geometry layers are requested as GeoJSON (WGS84, EPSG:4326) and reprojected to EPSG:2193 on arrival; tables are requested as JSON.
-   - Retry with backoff on network errors, dropped connections, HTTP 5xx, and ArcGIS error bodies with codes 5xx/498/499. Other error bodies raise `ArcGISError` at once.
+   - Retry up to 5 times (1, 2, 4, 8 s backoff) on network errors, dropped connections, HTTP 5xx, and ArcGIS error bodies with codes 5xx/498/499. Other error bodies raise `ArcGISError` at once.
    - HTTPS keeps certificate verification on and clears **only** `ssl.VERIFY_X509_STRICT` (the server's CA lacks a critical Basic Constraints flag).
-   - Results are cached as GeoParquet, keyed by layer **and exclude set**, so an unfiltered pull can never leak excluded fields (P9). A cache hit is reused unless `refresh=True` or the cache is older than `max_age_days` (35).
+   - Results are cached as GeoParquet, keyed by layer **and requested column set**, so an unfiltered pull can never leak excluded fields (P9). A cache hit is reused unless `refresh=True` or the cache is older than `max_age_days` (35).
    - Each fetch appends to `_fetch_log.jsonl`.
 4. **Validate raw** **(exists)**: fetched rows must equal `returnCountOnly`; object IDs must be unique (catches servers that ignore `resultOffset`); the field-list hash is compared with the last pull (a change raises `SchemaDrift`). Any failure stops the pipeline.
 5. **Pre-profile** (serious): ydata-profiling report plus `profile_summary.md` (types, missingness, cardinality, outliers, leakage notes, hypotheses).
