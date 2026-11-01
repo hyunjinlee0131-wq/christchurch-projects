@@ -28,3 +28,22 @@ describe("data vs people threshold", () => {
     expect(dataVsPeople(parks, { "9999999": 30, a: 1 }, 20)).toBeNull();
   });
 });
+
+import { podium } from "../src/lib/people";
+
+describe("podium", () => {
+  const ranked = peopleRanking(
+    [1, 2, 3, 4, 5, 6].map((i) => ({ id: String(i), name: `P${i}`, rank: i })),
+    { "1": 9, "2": 8, "3": 7, "4": 6, "5": 5, "6": 4 },
+  );
+  it("splits the top 5 into a top 3 and two runners-up", () => {
+    const { top3, runnersUp } = podium(ranked);
+    expect(top3.map((p) => p.id)).toEqual(["1", "2", "3"]);
+    expect(runnersUp.map((p) => p.id)).toEqual(["4", "5"]);
+  });
+  it("copes with fewer than 5 voted parks", () => {
+    const { top3, runnersUp } = podium(ranked.slice(0, 2));
+    expect(top3.length).toBe(2);
+    expect(runnersUp).toEqual([]);
+  });
+});

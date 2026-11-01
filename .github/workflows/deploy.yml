@@ -29,6 +29,7 @@ jobs:
           PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.PUBLIC_SUPABASE_ANON_KEY }}
           PUBLIC_GA4_ID: ${{ secrets.PUBLIC_GA4_ID }}
           PUBLIC_FEEDBACK_FORM_URL: ${{ secrets.PUBLIC_FEEDBACK_FORM_URL }}
+          PUBLIC_LINZ_API_KEY: ${{ secrets.PUBLIC_LINZ_API_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site/dist

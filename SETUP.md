@@ -9,6 +9,7 @@ Values go in **GitHub → repo Settings → Secrets and variables → Actions �
 | `PUBLIC_SUPABASE_ANON_KEY` | (same) | Supabase project → Settings → API → `anon` `public` key |
 | `PUBLIC_GA4_ID` | Visitor analytics | Google Analytics → Admin → Data streams → Web → Measurement ID (`G-…`) |
 | `PUBLIC_FEEDBACK_FORM_URL` | "Tell us what you think" links | Your Google Form's share link |
+| `PUBLIC_LINZ_API_KEY` (optional) | Only if LINZ starts requiring a key for the People's Choice aerial photos | <https://basemaps.linz.govt.nz> → Developer → API key |
 
 After adding or changing secrets, re-run the deploy: **Actions → Deploy site → Run workflow**.
 

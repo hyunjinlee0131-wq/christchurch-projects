@@ -78,7 +78,10 @@ const TOP_N = 10;
         ranked by votes only, shown next to (never mixed into) the data score.</p>
       <div id="people" data-min="20">
         <p class="muted" id="people-msg">{votingConfigured ? "Loading votes…" : "Voting opens soon."}</p>
-        <ol id="people-list" hidden></ol>
+        <ol id="podium" class="podium" aria-label="People's Choice top 3" hidden></ol>
+        <ol id="runners-up" class="runners-up" start="4" aria-label="People's Choice 4th and 5th" hidden></ol>
+        <p id="aerial-credit" class="muted small" hidden>Aerial imagery: <a href="https://basemaps.linz.govt.nz/">LINZ</a> (CC BY 4.0).
+          Park outlines: Christchurch City Council.</p>
       </div>
       <div id="dvp" hidden>
         <h3>Data vs People</h3>
@@ -195,16 +198,100 @@ const TOP_N = 10;
     { timeout: 10000 });
   });
 
-  // People's Choice: votes only, beside the data ranking.
+  // People's Choice: votes only, beside the data ranking. Top 3 on a podium, #4–5 as smaller cards,
+  // each with an aerial photo of the park; the top 3 also get medal markers on the map.
   import("../../lib/votes").then(async ({ getCounts, votingEnabled }) => {
     if (!votingEnabled()) return;
-    const { dataVsPeople, peopleRanking } = await import("../../lib/people");
+    const { dataVsPeople, peopleRanking, podium } = await import("../../lib/people");
     const msg = document.getElementById("people-msg")!;
     const [counts, d] = await Promise.all([getCounts(), load()]);
     if (!counts) { msg.textContent = "Votes couldn't load right now — try again later."; return; }
-    const named = (d.parks as (Park & { name: string; slug: string })[]);
+    type Named = Park & { name: string; slug: string };
+    const named = d.parks as Named[];
     const people = peopleRanking(named, counts);
     if (!people.length) { msg.textContent = "No votes yet — open any park and be the first."; return; }
+    msg.remove();
+
+    const { top3, runnersUp } = podium(people);
+    const PLACES = ["gold", "silver", "bronze"];
+    const MEDALS = ["🥇", "🥈", "🥉"];
+    const plural = (n: number) => `${n} vote${n === 1 ? "" : "s"}`;
+    const card = (p: (typeof people)[number], i: number, big: boolean) => {
+      const li = document.createElement("li");
+      li.className = big ? `podium-card ${PLACES[i]}` : "runner-card";
+      const aerial = document.createElement("div");
+      aerial.className = "aerial";
+      aerial.dataset.id = p.id;
+      aerial.setAttribute("role", "img");
+      aerial.setAttribute("aria-label", `Aerial photo of ${p.name}`);
+      const body = document.createElement("div");
+      body.className = "card-body";
+      const place = document.createElement("span");
+      place.className = "place";
+      place.textContent = big ? `${MEDALS[i]} #${i + 1}` : `#${i + 1}`;
+      const a = document.createElement("a");
+      a.href = `${base}parks/${p.slug}/`;
+      a.className = "park-name";
+      a.textContent = p.name;
+      const meta = document.createElement("span");
+      meta.className = "meta";
+      meta.textContent = `${plural(p.votes)} · data rank #${p.rank}`;
+      body.append(place, a, meta);
+      li.append(aerial, body);
+      return li;
+    };
+    const podiumEl = document.getElementById("podium")!;
+    const runnersEl = document.getElementById("runners-up")!;
+    podiumEl.replaceChildren(...top3.map((p, i) => card(p, i, true)));
+    runnersEl.replaceChildren(...runnersUp.map((p, i) => card(p, i + 3, false)));
+    podiumEl.hidden = false;
+    runnersEl.hidden = runnersUp.length === 0;
+    document.getElementById("aerial-credit")!.hidden = false;
+
+    // Medal markers on the map (the map may finish loading before or after this).
+    const top = top3.map((p) => ({ id: p.id, name: p.name, slug: p.slug, lon: p.lon, lat: p.lat, votes: p.votes }));
+    (window as unknown as { __peoplesTop?: typeof top }).__peoplesTop = top;
+    window.dispatchEvent(new CustomEvent("peoples-top", { detail: top }));
+
+    // Aerial photos, drawn when the section is about to scroll into view.
+    const drawAerials = async () => {
+      try {
+        const [{ loadMapLibre, linzAerialTiles }, { bboxOf }, geo] = await Promise.all([
+          import("../../lib/maplibre"),
+          import("../../lib/geo"),
+          fetch(`${base}data/best_park/parks.geojson`).then((r) => r.json()),
+        ]);
+        const maplibregl = await loadMapLibre();
+        const byId = new Map<string, any>(geo.features.map((f: any) => [String(f.properties.id), f]));
+        for (const el of document.querySelectorAll<HTMLElement>(".people .aerial")) {
+          const feature = byId.get(el.dataset.id!);
+          if (!feature) continue;
+          const map = new maplibregl.Map({
+            container: el, interactive: false, attributionControl: false, fadeDuration: 0,
+            style: {
+              version: 8,
+              sources: {
+                aerial: { type: "raster", tiles: [linzAerialTiles()], tileSize: 256, maxzoom: 20 },
+                park: { type: "geojson", data: feature },
+              },
+              layers: [
+                { id: "aerial", type: "raster", source: "aerial" },
+                { id: "park-glow", type: "line", source: "park", paint: { "line-color": "#000", "line-width": 6, "line-opacity": 0.35 } },
+                { id: "park-line", type: "line", source: "park", paint: { "line-color": "#ffd34d", "line-width": 3 } },
+              ],
+            },
+          });
+          map.fitBounds(bboxOf(feature.geometry), { padding: 18, maxZoom: 18, duration: 0 });
+        }
+      } catch (err) {
+        console.error("people's choice aerials failed", err);
+      }
+    };
+    new IntersectionObserver((entries, io) => {
+      if (entries.some((e) => e.isIntersecting)) { io.disconnect(); drawAerials(); }
+    }, { rootMargin: "300px" }).observe(document.querySelector(".people")!);
+
+    // Data vs People
     const li = (p: { slug: string; name: string }, extra: string) => {
       const el = document.createElement("li");
       const a = document.createElement("a");
@@ -213,10 +300,6 @@ const TOP_N = 10;
       el.append(a, document.createTextNode(` — ${extra}`));
       return el;
     };
-    const list = document.getElementById("people-list")!;
-    list.replaceChildren(...people.slice(0, 10).map((p) => li(p, `${p.votes} vote${p.votes === 1 ? "" : "s"} (data rank #${p.rank})`)));
-    list.hidden = false;
-    msg.remove();
     const min = Number(document.getElementById("people")!.dataset.min);
     const dvp = dataVsPeople(named, counts, min);
     const box = document.getElementById("dvp")!;
@@ -227,8 +310,8 @@ const TOP_N = 10;
       box.before(note);
       return;
     }
-    document.getElementById("dvp-under")!.replaceChildren(...dvp.underrated.map((p) => li(p, `${p.gap} places higher with people`)));
-    document.getElementById("dvp-over")!.replaceChildren(...dvp.overrated.map((p) => li(p, `${-p.gap} places lower with people`)));
+    document.getElementById("dvp-under")!.replaceChildren(...dvp.underrated.map((p) => li(p, `${p.gap} place${p.gap === 1 ? "" : "s"} higher with people`)));
+    document.getElementById("dvp-over")!.replaceChildren(...dvp.overrated.map((p) => li(p, `${-p.gap} place${p.gap === -1 ? "" : "s"} lower with people`)));
     box.hidden = false;
   });
 
@@ -258,6 +341,36 @@ const TOP_N = 10;
   .bar { display: inline-block; height: 8px; width: calc(var(--w) * 0.6px); max-width: 60px; background: var(--accent); border-radius: 4px; }
   #show-all { margin-top: 0.75rem; }
   .method, .people { margin-top: 2rem; }
+  /* People's Choice podium */
+  .podium, .runners-up { list-style: none; padding: 0; margin: 1rem 0; display: grid; gap: 1rem; }
+  .podium { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); align-items: end; }
+  .runners-up { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .podium :global(.podium-card), .runners-up :global(.runner-card) {
+    border-radius: 14px; overflow: hidden; background: var(--surface); border: 1px solid var(--border);
+  }
+  .podium :global(.podium-card) { border-width: 3px; box-shadow: 0 8px 24px rgb(0 0 0 / 0.12); }
+  .podium :global(.aerial) { height: 200px; }
+  .podium :global(.gold .aerial) { height: 240px; }
+  .runners-up :global(.runner-card) { display: grid; grid-template-columns: 104px 1fr; align-items: center; }
+  .runners-up :global(.aerial) { height: 104px; }
+  .people :global(.aerial) { background: #2b3532; }
+  .people :global(.card-body) { padding: 0.75rem 1rem 1rem; display: grid; gap: 0.15rem; }
+  .people :global(.place) { font-weight: 800; font-size: 0.95rem; letter-spacing: 0.02em; }
+  .podium :global(.place) { font-size: 1.25rem; }
+  .people :global(.park-name) { font-weight: 700; font-size: 1.05rem; color: var(--text); }
+  .podium :global(.park-name) { font-size: 1.3rem; }
+  .people :global(.meta) { color: var(--muted); font-size: 0.9rem; }
+  .podium :global(.gold) { border-color: #d4a017; background: linear-gradient(180deg, var(--surface) 55%, rgb(212 160 23 / 0.16)); }
+  .podium :global(.silver) { border-color: #9aa3ad; background: linear-gradient(180deg, var(--surface) 55%, rgb(154 163 173 / 0.18)); }
+  .podium :global(.bronze) { border-color: #b0703c; background: linear-gradient(180deg, var(--surface) 55%, rgb(176 112 60 / 0.16)); }
+  @media (min-width: 760px) {
+    /* classic podium order: 2nd, 1st, 3rd */
+    .podium { grid-template-columns: 1fr 1.15fr 1fr; }
+    .podium :global(.silver) { order: 1; }
+    .podium :global(.gold) { order: 2; }
+    .podium :global(.bronze) { order: 3; }
+  }
+  .small { font-size: 0.85rem; }
   .dvp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
   @media (max-width: 600px) { .col-type, .col-area { display: none; } }
 </style>

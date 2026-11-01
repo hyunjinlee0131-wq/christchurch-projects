@@ -24,3 +24,11 @@ export function dataVsPeople<T extends Park>(parks: T[], counts: Record<string, 
     overrated: gaps.filter((p) => p.gap < 0).sort((a, b) => a.gap - b.gap).slice(0, n),
   };
 }
+
+/** People's Choice podium: the top 3 get the fancy cards, #4–5 the smaller ones. */
+export function podium<T>(ranked: T[]): { top3: T[]; runnersUp: T[] } {
+  return { top3: ranked.slice(0, 3), runnersUp: ranked.slice(3, 5) };
+}
+
+/** What the map needs to place a People's Choice medal marker. */
+export type PeoplesTop = { id: string; name: string; slug: string; lon: number; lat: number; votes: number };

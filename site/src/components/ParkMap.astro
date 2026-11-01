@@ -14,15 +14,37 @@ const base = import.meta.env.BASE_URL;
 </section>
 
 <script>
+  import { loadMapLibre } from "../lib/maplibre";
+  import type { PeoplesTop } from "../lib/people";
+
   const el = document.getElementById("park-map") as HTMLElement;
+  const MEDALS = ["🥇", "🥈", "🥉"];
+
+  // People's Choice top 3 as medal markers. The People's Choice script publishes the list
+  // (window.__peoplesTop + a "peoples-top" event) whenever vote counts load.
+  const showPeoplesTop = (maplibregl: typeof import("maplibre-gl"), map: import("maplibre-gl").Map) => {
+    let markers: import("maplibre-gl").Marker[] = [];
+    const draw = (top: PeoplesTop[]) => {
+      markers.forEach((m) => m.remove());
+      markers = top.slice(0, 3).map((p, i) => {
+        const pin = document.createElement("a");
+        pin.className = `medal-pin place-${i + 1}`;
+        pin.href = `${el.dataset.base}parks/${p.slug}/`;
+        pin.textContent = MEDALS[i];
+        pin.title = `People's Choice #${i + 1}: ${p.name} (${p.votes} vote${p.votes === 1 ? "" : "s"})`;
+        pin.setAttribute("aria-label", pin.title);
+        pin.style.zIndex = String(10 - i); // gold above silver above bronze when parks are close together
+        return new maplibregl.Marker({ element: pin, anchor: "bottom" }).setLngLat([p.lon, p.lat]).addTo(map);
+      });
+    };
+    const w = window as unknown as { __peoplesTop?: PeoplesTop[] };
+    if (w.__peoplesTop) draw(w.__peoplesTop);
+    window.addEventListener("peoples-top", (e) => draw((e as CustomEvent<PeoplesTop[]>).detail));
+  };
+
   const start = async () => {
     try {
-      const [maplibregl, worker] = await Promise.all([
-        import("maplibre-gl"),
-        import("maplibre-gl/dist/maplibre-gl-worker.mjs?url"), // self-contained: bundlers break MapLibre's relative worker lookup
-        import("maplibre-gl/dist/maplibre-gl.css"),
-      ]);
-      maplibregl.setWorkerUrl(worker.default);
+      const maplibregl = await loadMapLibre();
       el.querySelector(".map-msg")?.remove();
       const map = new maplibregl.Map({
         container: el,
@@ -54,6 +76,7 @@ const base = import.meta.env.BASE_URL;
         });
         map.on("mouseenter", "parks-fill", () => (map.getCanvas().style.cursor = "pointer"));
         map.on("mouseleave", "parks-fill", () => (map.getCanvas().style.cursor = ""));
+        showPeoplesTop(maplibregl, map);
       });
     } catch (err) {
       console.error("park map failed", err);
@@ -71,6 +94,8 @@ const base = import.meta.env.BASE_URL;
 <style>
   .map { height: min(70vh, 520px); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; background: var(--surface); }
   .map-msg { padding: 1rem; }
+  .map :global(.medal-pin) { font-size: 30px; line-height: 1; text-decoration: none; filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.45)); cursor: pointer; }
+  .map :global(.medal-pin.place-1) { font-size: 38px; }
   .ramp { display: inline-block; width: 120px; height: 10px; vertical-align: middle; border-radius: 5px;
           background: linear-gradient(90deg, var(--s0), var(--s1), var(--s2), var(--s3), var(--s4)); }
 </style>
