@@ -22,3 +22,9 @@ describe("people's choice", () => {
     expect(res.overrated[0].id).toBe("a"); // data #1, people #3
   });
 });
+
+describe("data vs people threshold", () => {
+  it("ignores votes for ids that aren't real parks", () => {
+    expect(dataVsPeople(parks, { "9999999": 30, a: 1 }, 20)).toBeNull();
+  });
+});

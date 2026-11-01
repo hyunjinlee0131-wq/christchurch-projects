@@ -11,7 +11,8 @@ export function peopleRanking<T extends Park>(parks: T[], counts: Record<string,
 }
 
 export function dataVsPeople<T extends Park>(parks: T[], counts: Record<string, number>, minVotes = 20, n = 5) {
-  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  // Only votes for real parks count (test rows or junk ids must not unlock this section).
+  const total = parks.reduce((sum, p) => sum + (counts[p.id] ?? 0), 0);
   if (total < minVotes) return null;
   // Compare positions among voted parks only, so the gap means something.
   const voted = peopleRanking(parks, counts);
