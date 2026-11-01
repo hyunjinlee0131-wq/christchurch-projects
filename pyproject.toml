@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["live: hits the real CCC server"]
+addopts = "-m 'not live'"

@@ -1,21 +1,11 @@
-# Intent — CCC Spatial Data
+# Intent — Christchurch Projects
 
-## Why
-<!-- What problem does this project solve, and for whom? -->
+A growing collection of projects built on Christchurch City Council's open spatial data, gathered on one website.
 
-## What
-<!-- What spatial data is involved (sources, formats, area covered)? What gets produced (maps, datasets, analysis, app)? -->
+- **Fun projects** (rankings, maps, games) are built to attract users and get shared.
+- **Serious projects** answer real local problems with rigorous, reproducible analysis following `docs/baseline.md`.
+- Every project must be a polished, fully usable product, not a demo.
 
-## Done looks like
-<!-- Concrete, checkable outcomes. -->
-- 
-
-## Out of scope
-- 
-
-## Constraints
-<!-- Tools/stack, data licensing, deadlines, CRS/projection, file size limits. -->
-- 
-
-## Open questions
-- What does "CCC" stand for here?
+Design: `docs/superpowers/specs/2026-11-01-ccc-spatial-projects-design.md`
+Pipeline principles: `docs/pipeline-design-principles.md`
+All available datasets: `datasets.md`
