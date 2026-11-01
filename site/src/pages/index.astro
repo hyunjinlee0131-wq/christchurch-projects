@@ -1,0 +1,52 @@
+---
+import Base from "../layouts/Base.astro";
+import parkMetrics from "../data/best_park/metrics.json";
+import parks from "../data/best_park/parks.json";
+
+const base = import.meta.env.BASE_URL;
+// Only live projects are listed (design: each project goes live when it passes the quality bar).
+const projects = [
+  {
+    href: `${base}parks/`,
+    kind: "Fun · ranking",
+    title: "Best Park in Christchurch",
+    headline: `#1: ${parkMetrics.top5[0]}`,
+    blurb: `All ${parkMetrics.n_parks} parks ranked by what's in them — then re-ranked by what matters to you, and by your votes.`,
+  },
+];
+---
+<Base
+  title="Christchurch Projects — local questions answered with open data"
+  description="Fun rankings and practical tools built on Christchurch City Council's open spatial data."
+  dataPulledAt={parkMetrics.data_pulled_at}
+  ogImage={`og/parks/${parks.parks[0].slug}.png`}
+>
+  <div class="wrap">
+    <section class="hero">
+      <h1>Christchurch Projects</h1>
+      <p class="lede">Local questions, answered with the council's open data. Fun rankings to argue about, and tools you can actually use.</p>
+    </section>
+    <ul class="grid" role="list">
+      {projects.map((p) => (
+        <li class="card project">
+          <span class="kind muted">{p.kind}</span>
+          <h2><a href={p.href}>{p.title}</a></h2>
+          <p class="headline">{p.headline}</p>
+          <p class="muted">{p.blurb}</p>
+        </li>
+      ))}
+    </ul>
+    <p class="muted more">More projects are on the way: flood and sea-level exposure, river health, parking, street lighting and more.</p>
+  </div>
+</Base>
+
+<style>
+  .hero { margin: 1rem 0 2rem; }
+  .lede { font-size: 1.15rem; max-width: 46rem; }
+  .grid { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+  .project h2 { margin: 0.25rem 0; font-size: 1.25rem; }
+  .project h2 a { color: var(--text); }
+  .kind { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .headline { font-weight: 700; color: var(--accent); margin: 0.25rem 0; }
+  .more { margin-top: 2rem; }
+</style>

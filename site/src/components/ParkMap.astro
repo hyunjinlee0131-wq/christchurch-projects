@@ -1,0 +1,70 @@
+---
+// Park polygons coloured by score. MapLibre loads only when the map scrolls into view.
+const base = import.meta.env.BASE_URL;
+---
+<section class="map-section" aria-labelledby="map-h">
+  <h2 id="map-h">Map</h2>
+  <div id="park-map" class="map" data-geojson={`${base}data/best_park/parks.geojson`} data-base={base}
+       role="region" aria-label="Map of Christchurch parks coloured by score">
+    <p class="map-msg muted">Loading map…</p>
+  </div>
+  <p class="legend muted" aria-hidden="true">
+    Score: <span class="ramp"></span> low → high
+  </p>
+</section>
+
+<script>
+  const el = document.getElementById("park-map") as HTMLElement;
+  const start = async () => {
+    try {
+      const [{ default: maplibregl }] = await Promise.all([import("maplibre-gl"), import("maplibre-gl/dist/maplibre-gl.css")]);
+      el.querySelector(".map-msg")?.remove();
+      const map = new maplibregl.Map({
+        container: el,
+        style: "https://tiles.openfreemap.org/styles/positron",
+        center: [172.62, -43.53],
+        zoom: 10.3,
+        attributionControl: { compact: true },
+      });
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }));
+      map.on("load", () => {
+        map.addSource("parks", { type: "geojson", data: el.dataset.geojson! });
+        map.addLayer({
+          id: "parks-fill", type: "fill", source: "parks",
+          paint: {
+            "fill-color": ["interpolate", ["linear"], ["get", "score"], 0, "#440154", 25, "#3b528b", 50, "#21918c", 75, "#5ec962", 100, "#c8b100"],
+            "fill-opacity": 0.7,
+          },
+        });
+        map.addLayer({ id: "parks-line", type: "line", source: "parks", paint: { "line-color": "#1c2321", "line-width": 0.4 } });
+        map.on("click", "parks-fill", (e) => {
+          const p = e.features?.[0]?.properties as { name: string; slug: string; rank: number; score: number } | undefined;
+          if (!p) return;
+          const div = document.createElement("div");
+          const a = document.createElement("a");
+          a.href = `${el.dataset.base}parks/${p.slug}/`;
+          a.textContent = p.name;
+          div.append(a, document.createTextNode(` — #${p.rank}, score ${p.score}`));
+          new maplibregl.Popup().setLngLat(e.lngLat).setDOMContent(div).addTo(map);
+        });
+        map.on("mouseenter", "parks-fill", () => (map.getCanvas().style.cursor = "pointer"));
+        map.on("mouseleave", "parks-fill", () => (map.getCanvas().style.cursor = ""));
+      });
+    } catch {
+      el.innerHTML = '<p class="map-msg muted">The map could not load. The ranking above still works.</p>';
+    }
+  };
+  if ("IntersectionObserver" in window) {
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) { io.disconnect(); start(); }
+    }, { rootMargin: "200px" });
+    io.observe(el);
+  } else start();
+</script>
+
+<style>
+  .map { height: min(70vh, 520px); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; background: var(--surface); }
+  .map-msg { padding: 1rem; }
+  .ramp { display: inline-block; width: 120px; height: 10px; vertical-align: middle; border-radius: 5px;
+          background: linear-gradient(90deg, var(--s0), var(--s1), var(--s2), var(--s3), var(--s4)); }
+</style>

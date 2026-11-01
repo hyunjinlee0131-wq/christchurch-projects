@@ -1,0 +1,261 @@
+---
+import Base from "../../layouts/Base.astro";
+import ParkMap from "../../components/ParkMap.astro";
+import Feedback from "../../components/Feedback.astro";
+import data from "../../data/best_park/parks.json";
+
+const votingConfigured = Boolean(import.meta.env.PUBLIC_SUPABASE_URL && import.meta.env.PUBLIC_SUPABASE_ANON_KEY);
+
+const base = import.meta.env.BASE_URL;
+const parks = data.parks;
+const top = parks[0];
+const n = parks.length;
+const TOP_N = 10;
+---
+<Base
+  title="Best Park in Christchurch — ranked by data, and by you"
+  description={`All ${n} Christchurch parks ranked by playgrounds, seats, barbecues, water, sport, dog areas, trees and size. #1: ${top.name}.`}
+  dataPulledAt={data.data_pulled_at}
+  ogImage={`og/parks/${top.slug}.png`}
+>
+  <div class="wrap">
+    <h1>Best Park in Christchurch</h1>
+    <p class="lede">The #1 park by the data is <a href={`${base}parks/${top.slug}/`}><strong>{top.name}</strong></a>.
+      Ranked from {n} parks using council data on what's actually in them.</p>
+
+    <section class="card controls" aria-labelledby="w-h">
+      <h2 id="w-h">What matters to you?</h2>
+      <p class="muted">Slide to re-rank every park for you. 0 = don't care, 3 = very important.</p>
+      <div class="sliders">
+        {data.factors.map((f) => (
+          <label class="slider">
+            <span>{f.label}</span>
+            <input type="range" min="0" max="3" step="0.5" value={String((data.weights as Record<string, number>)[f.key])}
+                   data-key={f.key} aria-describedby="w-h" />
+            <output>{(data.weights as Record<string, number>)[f.key]}</output>
+          </label>
+        ))}
+      </div>
+      <div class="actions">
+        <button type="button" id="reset">Reset to default</button>
+        <button type="button" id="near-me">Parks near me</button>
+      </div>
+      <p id="status" class="muted" role="status" aria-live="polite"></p>
+    </section>
+
+    <section aria-labelledby="list-h">
+      <h2 id="list-h">Ranking</h2>
+      <div class="table-wrap">
+        <table id="rank-table" class="collapsed">
+          <thead>
+            <tr><th scope="col">Rank</th><th scope="col">Park</th><th scope="col">Score</th>
+                <th scope="col" class="col-you" hidden>Your rank</th><th scope="col" class="col-dist" hidden>Distance</th>
+                <th scope="col" class="col-type">Type</th><th scope="col" class="col-area">Size</th></tr>
+          </thead>
+          <tbody>
+            {parks.map((p) => (
+              <tr data-id={p.id} data-lat={p.lat} data-lon={p.lon}>
+                <td class="rank">{p.rank}</td>
+                <td><a href={`${base}parks/${p.slug}/`}>{p.name}</a></td>
+                <td><span class="bar" style={`--w:${p.score}`} aria-hidden="true"></span> <span class="score">{p.score}</span></td>
+                <td class="col-you" hidden></td>
+                <td class="col-dist" hidden></td>
+                <td class="col-type muted">{p.type}</td>
+                <td class="col-area muted">{p.area_ha.toFixed(1)} ha</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <button type="button" id="show-all" aria-controls="rank-table" aria-expanded="false">Show all {n} parks</button>
+      <noscript><style>#rank-table.collapsed tbody tr:nth-child(n+11) { display: table-row; } #show-all { display: none; }</style></noscript>
+      <Feedback project="best_park" itemId="ranking" question="Was this ranking useful?" />
+    </section>
+
+    <section class="card people" aria-labelledby="people-h">
+      <h2 id="people-h">People's Choice</h2>
+      <p class="muted">The data can't measure everything. Vote for the parks you love on each park's page — this list is
+        ranked by votes only, shown next to (never mixed into) the data score.</p>
+      <div id="people" data-min="20">
+        <p class="muted" id="people-msg">{votingConfigured ? "Loading votes…" : "Voting opens soon."}</p>
+        <ol id="people-list" hidden></ol>
+      </div>
+      <div id="dvp" hidden>
+        <h3>Data vs People</h3>
+        <div class="dvp-grid">
+          <div><h4>Underrated by the data</h4><ol id="dvp-under"></ol></div>
+          <div><h4>Loved less than the data says</h4><ol id="dvp-over"></ol></div>
+        </div>
+      </div>
+    </section>
+
+    <ParkMap />
+
+    <section class="card method" aria-labelledby="how-h">
+      <h2 id="how-h">How this was calculated</h2>
+      <p>For every park we count what the council records inside it (or within 20 m of its edge):</p>
+      <ul>
+        {data.factors.map((f) => <li>{f.label} — weight {(data.weights as Record<string, number>)[f.key]}</li>)}
+      </ul>
+      <p>Each count becomes a percentile against all parks (having none scores 0). The score is the weighted
+        average of the percentiles, from 0 to 100. Tree cover is trees per hectare, capped at 200. It only counts trees
+        the council records individually, so forests and large natural areas (like Bottle Lake Forest) score low on trees.</p>
+      <p>Included: local, community, sports, regional, garden &amp; heritage and red-zone parks of at least 0.1 ha.
+        Utility land, cemeteries and the plant nursery are left out.</p>
+      <p><strong>Not counted:</strong> toilets (not in the council's open data), shade, views, cafés and how busy a park is —
+        that's what the votes are for.</p>
+    </section>
+  </div>
+</Base>
+
+<script>
+  import { allZero, rankParks, type Weights } from "../../lib/scoring";
+  import { track } from "../../lib/analytics";
+
+  const base = import.meta.env.BASE_URL;
+  const table = document.getElementById("rank-table") as HTMLTableElement;
+  const tbody = table.tBodies[0];
+  const rows = new Map<string, HTMLTableRowElement>();
+  for (const r of Array.from(tbody.rows)) rows.set(r.dataset.id!, r);
+  const status = document.getElementById("status")!;
+  const sliders = Array.from(document.querySelectorAll<HTMLInputElement>(".slider input"));
+  const showAll = document.getElementById("show-all") as HTMLButtonElement;
+
+  type Park = { id: string; pct: Record<string, number>; area_ha: number; rank: number; lat: number; lon: number };
+  let cache: { weights: Weights; parks: Park[] } | null = null;
+  const load = async () => (cache ??= await (await fetch(`${base}data/best_park/parks.json`)).json());
+
+  const setCols = (cls: string, on: boolean) =>
+    table.querySelectorAll<HTMLElement>(`.${cls}`).forEach((c) => (c.hidden = !on));
+
+  const order = (ids: string[]) => {
+    const frag = document.createDocumentFragment();
+    for (const id of ids) frag.append(rows.get(id)!);
+    tbody.append(frag);
+  };
+
+  const weightsNow = (): Weights => Object.fromEntries(sliders.map((s) => [s.dataset.key!, Number(s.value)]));
+
+  let timer: number | undefined;
+  const rerank = async () => {
+    const d = await load();
+    const w = weightsNow();
+    const isDefault = sliders.every((s) => Number(s.value) === d.weights[s.dataset.key!]);
+    if (allZero(w)) {
+      status.textContent = "Pick at least one thing you care about — showing the default ranking.";
+      setCols("col-you", false);
+      order([...d.parks].sort((a, b) => a.rank - b.rank).map((p) => p.id));
+      return;
+    }
+    const ranked = rankParks(d.parks, w, d.weights);
+    for (const p of ranked) rows.get(p.id)!.querySelector(".col-you")!.textContent = String(p.personalRank);
+    setCols("col-you", !isDefault);
+    setCols("col-dist", false);
+    order(ranked.map((p) => p.id));
+    status.textContent = isDefault ? "" : `Re-ranked for you. Your #1: ${rows.get(ranked[0].id)!.cells[1].textContent}.`;
+    clearTimeout(timer);
+    timer = window.setTimeout(() => track("reweight", Object.fromEntries(Object.entries(w).map(([k, v]) => [k, v]))), 1500);
+  };
+
+  for (const s of sliders) {
+    s.addEventListener("input", () => {
+      (s.nextElementSibling as HTMLOutputElement).value = s.value;
+      rerank();
+    });
+  }
+
+  document.getElementById("reset")!.addEventListener("click", async () => {
+    const d = await load();
+    for (const s of sliders) {
+      s.value = String(d.weights[s.dataset.key!]);
+      (s.nextElementSibling as HTMLOutputElement).value = s.value;
+    }
+    rerank();
+  });
+
+  document.getElementById("near-me")!.addEventListener("click", () => {
+    if (!navigator.geolocation) { status.textContent = "Your browser can't share location."; return; }
+    status.textContent = "Finding your location…";
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const d = await load();
+      const { latitude: la, longitude: lo } = pos.coords;
+      const R = 6371, rad = Math.PI / 180;
+      const dist = (p: Park) => {
+        const dLa = (p.lat - la) * rad, dLo = (p.lon - lo) * rad;
+        const a = Math.sin(dLa / 2) ** 2 + Math.cos(la * rad) * Math.cos(p.lat * rad) * Math.sin(dLo / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(a));
+      };
+      const near = d.parks.map((p) => ({ id: p.id, km: dist(p) })).sort((a, b) => a.km - b.km);
+      for (const p of near) rows.get(p.id)!.querySelector(".col-dist")!.textContent = `${p.km.toFixed(1)} km`;
+      setCols("col-dist", true);
+      order(near.map((p) => p.id));
+      status.textContent = "Sorted by distance from you. Your location is not stored or sent anywhere.";
+      track("near_me");
+    }, () => { status.textContent = "Location permission was denied — the ranking still works without it."; },
+    { timeout: 10000 });
+  });
+
+  // People's Choice: votes only, beside the data ranking.
+  import("../../lib/votes").then(async ({ getCounts, votingEnabled }) => {
+    if (!votingEnabled()) return;
+    const { dataVsPeople, peopleRanking } = await import("../../lib/people");
+    const msg = document.getElementById("people-msg")!;
+    const [counts, d] = await Promise.all([getCounts(), load()]);
+    if (!counts) { msg.textContent = "Votes couldn't load right now — try again later."; return; }
+    const named = (d.parks as (Park & { name: string; slug: string })[]);
+    const people = peopleRanking(named, counts);
+    if (!people.length) { msg.textContent = "No votes yet — open any park and be the first."; return; }
+    const li = (p: { slug: string; name: string }, extra: string) => {
+      const el = document.createElement("li");
+      const a = document.createElement("a");
+      a.href = `${base}parks/${p.slug}/`;
+      a.textContent = p.name;
+      el.append(a, document.createTextNode(` — ${extra}`));
+      return el;
+    };
+    const list = document.getElementById("people-list")!;
+    list.replaceChildren(...people.slice(0, 10).map((p) => li(p, `${p.votes} vote${p.votes === 1 ? "" : "s"} (data rank #${p.rank})`)));
+    list.hidden = false;
+    msg.remove();
+    const min = Number(document.getElementById("people")!.dataset.min);
+    const dvp = dataVsPeople(named, counts, min);
+    const box = document.getElementById("dvp")!;
+    if (!dvp) {
+      const note = document.createElement("p");
+      note.className = "muted";
+      note.textContent = `Data vs People appears after ${min} votes — be one of the first.`;
+      box.before(note);
+      return;
+    }
+    document.getElementById("dvp-under")!.replaceChildren(...dvp.underrated.map((p) => li(p, `${p.gap} places higher with people`)));
+    document.getElementById("dvp-over")!.replaceChildren(...dvp.overrated.map((p) => li(p, `${-p.gap} places lower with people`)));
+    box.hidden = false;
+  });
+
+  showAll.addEventListener("click", () => {
+    const expanded = table.classList.toggle("collapsed") === false;
+    showAll.setAttribute("aria-expanded", String(expanded));
+    showAll.textContent = expanded ? "Show top 10" : `Show all ${rows.size} parks`;
+  });
+</script>
+
+<style>
+  .lede { font-size: 1.15rem; }
+  .controls { margin: 1.5rem 0; }
+  .sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.5rem 1.5rem; }
+  .slider { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0 0.5rem; }
+  .slider span { grid-column: 1 / -1; font-size: 0.95rem; }
+  .slider input { width: 100%; min-height: 32px; accent-color: var(--accent); }
+  .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--radius); }
+  th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  th { font-size: 0.85rem; color: var(--muted); }
+  .rank { font-weight: 700; width: 3.5rem; }
+  #rank-table.collapsed tbody tr:nth-child(n+11) { display: none; }
+  .bar { display: inline-block; height: 8px; width: calc(var(--w) * 0.6px); max-width: 60px; background: var(--accent); border-radius: 4px; }
+  #show-all { margin-top: 0.75rem; }
+  .method, .people { margin-top: 2rem; }
+  .dvp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+  @media (max-width: 600px) { .col-type, .col-area { display: none; } }
+</style>

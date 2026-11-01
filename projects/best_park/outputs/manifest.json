@@ -88,7 +88,7 @@
     "parks.geojson",
     "metrics.json"
   ],
-  "git_sha": "0541e5123b9e661862d8f8d27fb0a22f1af447ff",
+  "git_sha": "04482ded3161d832d7b5e4d17a704466ad7c397c",
   "transform_log": [
     {
       "step": "keep visitor park types",

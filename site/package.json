@@ -1,0 +1,30 @@
+{
+  "name": "site",
+  "type": "module",
+  "version": "0.0.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "predev": "node scripts/sync-data.mjs",
+    "dev": "astro dev",
+    "prebuild": "node scripts/sync-data.mjs",
+    "build": "astro build",
+    "preview": "astro preview",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "astro": "7.4.4",
+    "maplibre-gl": "6.16.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@fontsource/inter": "5.3.0",
+    "@playwright/test": "1.64.1",
+    "@resvg/resvg-js": "2.6.2",
+    "satori": "0.63.2",
+    "vitest": "5.0.5"
+  }
+}

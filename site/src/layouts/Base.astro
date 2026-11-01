@@ -1,0 +1,73 @@
+---
+import "../styles/tokens.css";
+
+interface Props {
+  title: string;
+  description: string;
+  dataPulledAt?: string;
+  ogImage?: string; // path under base, e.g. "og/parks/hagley-park.png"
+}
+const { title, description, dataPulledAt, ogImage } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const abs = (p: string) => new URL(`${base}${p}`.replace(/\/+/g, "/"), Astro.site).href;
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const feedbackUrl = import.meta.env.PUBLIC_FEEDBACK_FORM_URL;
+const gaId = import.meta.env.PUBLIC_GA4_ID;
+const pulled = dataPulledAt ? new Date(dataPulledAt).toLocaleDateString("en-NZ", { day: "numeric", month: "long", year: "numeric" }) : null;
+---
+<!doctype html>
+<html lang="en-NZ">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Christchurch Projects" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    {ogImage && <meta property="og:image" content={abs(ogImage)} />}
+    {ogImage && <meta property="og:image:width" content="1200" />}
+    {ogImage && <meta property="og:image:height" content="630" />}
+    <meta name="twitter:card" content={ogImage ? "summary_large_image" : "summary"} />
+    <link rel="icon" href={`${base}favicon.svg`} type="image/svg+xml" />
+    {gaId && <script is:inline async src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}></script>}
+    <script>
+      import { initAnalytics } from "../lib/analytics";
+      initAnalytics();
+    </script>
+  </head>
+  <body>
+    <a class="sr-only" href="#main">Skip to content</a>
+    <header class="site-header">
+      <div class="wrap bar">
+        <a class="brand" href={base}>Christchurch Projects</a>
+        <nav aria-label="Projects"><a href={`${base}parks/`}>Best Park</a></nav>
+      </div>
+    </header>
+    <main id="main"><slot /></main>
+    <footer class="site-footer">
+      <div class="wrap">
+        <p>
+          {pulled && <>Data pulled {pulled} · </>}
+          Data: <a href="https://opendata-christchurchcity.hub.arcgis.com/">Christchurch City Council</a>
+          (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>)
+          {feedbackUrl && <> · <a href={feedbackUrl}>Tell us what you think</a></>}
+        </p>
+        <p class="muted">An independent project, not affiliated with Christchurch City Council.
+          <a href="https://github.com/hyunjinlee0131-wq/christchurch-projects">Source on GitHub</a></p>
+      </div>
+    </footer>
+  </body>
+</html>
+
+<style>
+  .site-header { background: var(--surface); border-bottom: 1px solid var(--border); }
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 56px; flex-wrap: wrap; }
+  .brand { font-weight: 700; color: var(--text); text-decoration: none; }
+  nav a { margin-left: 1rem; }
+  main { padding: 1.5rem 0 3rem; }
+  .site-footer { border-top: 1px solid var(--border); padding: 1.5rem 0; font-size: 0.9rem; }
+</style>

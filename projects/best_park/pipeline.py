@@ -1,5 +1,6 @@
 """Best Park pipeline: CCC layers -> park scores -> web outputs. Run: python -m projects.best_park.pipeline [--refresh]"""
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -20,7 +21,8 @@ def run(*, refresh: bool = False, root: Path = Path("projects")) -> Path:
     parks["slug"] = slugify_unique(parks["ParkName"].tolist())
 
     raw = raw_factors(parks, layers)
-    pct = percentiles(raw)
+    # Score from exactly the floats we publish (Python round, as in the records below), so the site reproduces it.
+    pct = percentiles(raw).map(lambda v: round(float(v), 3))
     parks = parks.set_index("ParkID")
     parks["score"] = score(pct, WEIGHTS)
     parks["area_ha"] = raw["size"]
@@ -76,6 +78,12 @@ def check(out_dir: Path = Path("projects/best_park/outputs")) -> None:
     for p in parks:
         assert 0 <= p["score"] <= 100, f"score out of range for {p['name']}: {p['score']}"
         assert all(0 <= v <= 1 for v in p["pct"].values()), f"pct out of range for {p['name']}"
+        w = data["weights"]
+        acc = 0.0
+        for k in w:  # plain left-to-right addition, like score() and scoring.ts (builtin sum() compensates)
+            acc += p["pct"][k] * w[k]
+        again = math.floor(1000 * acc / sum(w.values()) + 0.5) / 10
+        assert abs(again - p["score"]) < 1e-9, f"score for {p['name']} not reproducible from published pct ({again} vs {p['score']})"
         assert 172.3 <= p["lon"] <= 173.2 and -43.95 <= p["lat"] <= -43.35, f"{p['name']} outside Christchurch"
 
 

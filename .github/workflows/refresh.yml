@@ -1,0 +1,53 @@
+name: Monthly data refresh
+# Re-downloads council data, reruns every project pipeline (each runs its own check()),
+# and opens a pull request. Nothing reaches the live site until a human merges it (principle P10).
+on:
+  schedule:
+    - cron: "0 18 1 * *" # 18:00 UTC on the 1st = 06/07:00 NZ time on the 2nd
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Run pipelines
+        run: |
+          set -e
+          for p in projects/*/pipeline.py; do
+            name=$(basename "$(dirname "$p")")
+            case "$name" in _*) continue;; esac
+            echo "::group::$name"
+            python -m "projects.$name.pipeline" --refresh
+            echo "::endgroup::"
+          done
+      - name: Summarise changes
+        id: diff
+        run: |
+          {
+            echo 'body<<EOF'
+            echo "Automated monthly refresh of Christchurch City Council open data."
+            echo
+            echo "Review the headline numbers below before merging. Merging redeploys the site."
+            echo
+            echo '```diff'
+            git diff --no-color -- 'projects/*/outputs/metrics.json' || true
+            echo '```'
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: refresh/data
+          delete-branch: true
+          title: "Monthly data refresh"
+          commit-message: "data: monthly refresh"
+          body: ${{ steps.diff.outputs.body }}
+          add-paths: projects/*/outputs/**

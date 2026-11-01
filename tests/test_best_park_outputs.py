@@ -45,3 +45,11 @@ def test_check_rejects_duplicate_slugs(tmp_path):
     _write(dst, data)
     with pytest.raises(AssertionError, match="slug"):
         check(dst)
+
+
+def test_check_rejects_score_not_reproducible_from_pct(tmp_path):
+    dst, data = _copy(tmp_path)
+    data["parks"][0]["score"] = round(data["parks"][0]["score"] + 0.1, 1)
+    _write(dst, data)
+    with pytest.raises(AssertionError, match="reproduc"):
+        check(dst)

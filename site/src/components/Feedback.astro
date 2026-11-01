@@ -1,0 +1,41 @@
+---
+// "Was this useful?" 👍/👎 plus an optional link to the feedback form.
+interface Props { project: string; itemId: string; question?: string }
+const { project, itemId, question = "Was this useful?" } = Astro.props;
+const formUrl = import.meta.env.PUBLIC_FEEDBACK_FORM_URL;
+---
+<aside class="feedback card" data-project={project} data-item={itemId} aria-label="Feedback">
+  <span>{question}</span>
+  <button type="button" data-value="1" aria-label="Yes, useful">👍</button>
+  <button type="button" data-value="-1" aria-label="No, not useful">👎</button>
+  <span class="fb-status muted" role="status" aria-live="polite"></span>
+  {formUrl && <a href={formUrl}>Tell us more</a>}
+</aside>
+
+<script>
+  import { sendFeedback, votingEnabled } from "../lib/votes";
+  import { track } from "../lib/analytics";
+
+  for (const box of document.querySelectorAll<HTMLElement>(".feedback")) {
+    const buttons = Array.from(box.querySelectorAll<HTMLButtonElement>("button[data-value]"));
+    const status = box.querySelector(".fb-status")!;
+    if (!votingEnabled()) {
+      buttons.forEach((b) => (b.hidden = true));
+      continue;
+    }
+    for (const b of buttons) {
+      b.addEventListener("click", async () => {
+        const value = Number(b.dataset.value) as 1 | -1;
+        buttons.forEach((x) => (x.disabled = true));
+        const r = await sendFeedback(box.dataset.project!, box.dataset.item!, value);
+        status.textContent = r.ok ? "Thanks!" : "Couldn't send — try again later.";
+        if (!r.ok) buttons.forEach((x) => (x.disabled = false));
+        else track("feedback", { project: box.dataset.project!, value });
+      });
+    }
+  }
+</script>
+
+<style>
+  .feedback { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 1.5rem 0; }
+</style>

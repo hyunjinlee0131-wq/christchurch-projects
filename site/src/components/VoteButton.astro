@@ -1,0 +1,57 @@
+---
+// 👍 vote for a park. All buttons on a page share one script; states: idle, saving, voted, already, error, disabled.
+interface Props { parkId: string; parkName: string }
+const { parkId, parkName } = Astro.props;
+---
+<span class="vote-wrap">
+  <button type="button" class="vote btn-primary" data-park={parkId} aria-label={`Vote for ${parkName}`}>👍 I love this park</button>
+  <span class="vote-count muted" data-park={parkId} aria-live="polite"></span>
+</span>
+
+<script>
+  import { castVote, getCounts, rememberVote, votedParks, votingEnabled } from "../lib/votes";
+  import { track } from "../lib/analytics";
+
+  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>("button.vote"));
+  const counts = Array.from(document.querySelectorAll<HTMLElement>(".vote-count"));
+  const voted = votedParks();
+
+  const label = (b: HTMLButtonElement, text: string, disabled: boolean) => { b.textContent = text; b.disabled = disabled; };
+
+  if (!votingEnabled()) {
+    for (const b of buttons) label(b, "Voting coming soon", true);
+  } else {
+    for (const b of buttons) if (voted.has(b.dataset.park!)) label(b, "Voted ✓", true);
+    getCounts().then((c) => {
+      if (!c) return;
+      for (const el of counts) {
+        const n = c[el.dataset.park!] ?? 0;
+        el.textContent = `${n} vote${n === 1 ? "" : "s"}`;
+      }
+    });
+    for (const b of buttons) {
+      b.addEventListener("click", async () => {
+        const id = b.dataset.park!;
+        label(b, "Saving…", true);
+        const r = await castVote(id);
+        if (r.ok) {
+          rememberVote(id);
+          label(b, r.already ? "Already voted ✓" : "Voted ✓", true);
+          if (!r.already) {
+            for (const el of counts) if (el.dataset.park === id) {
+              const n = (parseInt(el.textContent || "0", 10) || 0) + 1;
+              el.textContent = `${n} vote${n === 1 ? "" : "s"}`;
+            }
+            track("vote", { park: id });
+          }
+        } else {
+          label(b, "Couldn't save — try again", false);
+        }
+      });
+    }
+  }
+</script>
+
+<style>
+  .vote-wrap { display: inline-flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+</style>

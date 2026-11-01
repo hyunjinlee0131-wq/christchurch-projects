@@ -1,0 +1,102 @@
+---
+import Base from "../../layouts/Base.astro";
+import VoteButton from "../../components/VoteButton.astro";
+import Feedback from "../../components/Feedback.astro";
+import data from "../../data/best_park/parks.json";
+
+export function getStaticPaths() {
+  return data.parks.map((p) => ({ params: { slug: p.slug }, props: { park: p } }));
+}
+
+const { park } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const n = data.parks.length;
+const raw = park.raw as Record<string, number>;
+const pct = park.pct as Record<string, number>;
+
+const units: Record<string, (v: number) => string> = {
+  play: (v) => `${v} pieces of play equipment`,
+  seating: (v) => `${v} seats & picnic tables`,
+  bbq: (v) => `${v} barbecue${v === 1 ? "" : "s"}`,
+  water: (v) => `${v} drinking fountain${v === 1 ? "" : "s"} or shower${v === 1 ? "" : "s"}`,
+  sport: (v) => `${v} sports field${v === 1 ? "" : "s"}`,
+  dogs: (v) => (v ? "Has a dog exercise area" : "No dog exercise area"),
+  trees: (v) => `${Math.round(v)} trees per hectare`,
+  size: (v) => `${v.toFixed(1)} hectares`,
+};
+const words = (k: string) => {
+  if (!raw[k]) return "none recorded";
+  if (k === "dogs") return "one of the few with a dedicated area";
+  return `more than ${Math.round(100 * pct[k] - 1)}% of parks`;
+};
+const share = new URL(`${base}parks/${park.slug}/`, Astro.site).href;
+const shareText = `${park.name} is #${park.rank} of ${n} parks in Christchurch`;
+---
+<Base
+  title={`${park.name} — #${park.rank} of ${n} parks in Christchurch`}
+  description={`${park.name} scores ${park.score}/100 for playgrounds, seats, barbecues, water, sport, dogs, trees and size.`}
+  dataPulledAt={data.data_pulled_at}
+  ogImage={`og/parks/${park.slug}.png`}
+>
+  <div class="wrap">
+    <p><a href={`${base}parks/`}>← All parks</a></p>
+    <h1>{park.name} is #{park.rank} of {n} parks in Christchurch</h1>
+    <p class="lede">Score <strong>{park.score}</strong>/100 · {park.type} · {park.area_ha.toFixed(1)} ha</p>
+
+    <div class="actions">
+      <VoteButton parkId={park.id} parkName={park.name} />
+      <button type="button" id="share" data-url={share} data-text={shareText}>Share</button>
+      <span id="share-status" class="muted" role="status" aria-live="polite"></span>
+    </div>
+
+    <section class="card" aria-labelledby="why-h">
+      <h2 id="why-h">Why it ranks here</h2>
+      <ul class="factors">
+        {data.factors.map((f) => (
+          <li>
+            <div class="f-head"><span>{f.label}</span><span class="muted">{units[f.key](raw[f.key])}</span></div>
+            <div class="meter" role="img" aria-label={`${f.label}: ${words(f.key)}`}>
+              <span style={`width:${Math.round(100 * pct[f.key])}%`}></span>
+            </div>
+            <div class="muted small">{words(f.key)}</div>
+          </li>
+        ))}
+      </ul>
+    </section>
+
+    <section aria-labelledby="where-h">
+      <h2 id="where-h">Where</h2>
+      <p><a href={`https://www.openstreetmap.org/?mlat=${park.lat}&mlon=${park.lon}#map=16/${park.lat}/${park.lon}`}>Open in a map</a>
+        · <a href={`https://www.google.com/maps/dir/?api=1&destination=${park.lat},${park.lon}`}>Directions</a></p>
+    </section>
+
+    <Feedback project="best_park" itemId={park.id} question="Does this ranking feel right for this park?" />
+  </div>
+</Base>
+
+<script>
+  import { track } from "../../lib/analytics";
+  const btn = document.getElementById("share") as HTMLButtonElement;
+  const status = document.getElementById("share-status")!;
+  track("open_park", { slug: location.pathname.split("/").filter(Boolean).pop() ?? "" });
+  btn.addEventListener("click", async () => {
+    const { url, text } = btn.dataset as { url: string; text: string };
+    try {
+      if (navigator.share) await navigator.share({ title: text, text, url });
+      else { await navigator.clipboard.writeText(url); status.textContent = "Link copied."; }
+      track("share", { url });
+    } catch {
+      status.textContent = url;
+    }
+  });
+</script>
+
+<style>
+  .lede { font-size: 1.1rem; }
+  .actions { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin: 1rem 0 1.5rem; }
+  .factors { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.9rem; }
+  .f-head { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .meter { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; margin: 0.25rem 0; }
+  .meter span { display: block; height: 100%; background: var(--accent); }
+  .small { font-size: 0.85rem; }
+</style>

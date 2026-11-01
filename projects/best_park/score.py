@@ -3,6 +3,7 @@ import re
 import unicodedata
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 
 from ccc_data import log_step
@@ -68,7 +69,8 @@ def score(pct: pd.DataFrame, weights: dict[str, float]) -> pd.Series:
     if sum(w.values()) == 0:
         w = {k: float(WEIGHTS.get(k, 0)) for k in pct.columns}
     total = sum(w.values())
-    return (100 * sum(pct[k] * v for k, v in w.items()) / total).round(1)
+    # Round half up, the same arithmetic as the site's scoring.ts (Math.round(1000 * sum / total) / 10).
+    return np.floor(1000 * sum(pct[k] * v for k, v in w.items()) / total + 0.5) / 10
 
 
 def slugify_unique(names: list[str]) -> list[str]:
