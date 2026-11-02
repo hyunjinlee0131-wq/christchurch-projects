@@ -19,15 +19,15 @@ differ in pipe age, material and size.
 
 ## Answer
 
-**1. Pipe age and size matter most, then material.** After allowing for everything else:
+**1. Small, old pipes stand out, then material.** After allowing for the other factors (relining left out, see Limitations):
 
 | Driver | Effect on recorded blockages | 95% CI |
 |---|---|---|
-| Diameter | **−65% per extra 100 mm** (bigger pipes rarely block) | −70% to −59% |
-| Age | **+15% per extra 10 years** | +11% to +20% |
-| Asbestos cement vs plastic | ×1.68 | 1.30–2.16 |
-| Concrete vs plastic | ×1.50 | 1.19–1.88 |
-| Earthenware vs plastic | ×1.22 (raw rate 2.8× plastic, mostly explained by its age and small size) | 0.89–1.68 |
+| Diameter | **−65% per extra 100 mm** (wider pipes rarely block) | −71% to −59% |
+| Age | **+15% per extra 10 years**, partly because older pipes have had longer to block | +11% to +19% |
+| Asbestos cement vs plastic | ×1.68 | 1.31–2.17 |
+| Concrete vs plastic | ×1.50 | 1.20–1.88 |
+| Earthenware vs plastic | ×1.22: **not clear** (raw rate 2.8× plastic, mostly explained by its age and small size) | 0.88–1.67 |
 
 **A risk ranking helps.** Ranked by the model, the riskiest 10% of pipe length (165 km) holds **31%** of recorded
 blockages. Ranking by material alone captures 17%, so the model nearly doubles the "hit rate" of an inspection
@@ -35,7 +35,9 @@ programme. This was validated on areas held out by 1 km grid cell, so it isn't f
 It falls short of the 40% target set at the start; see Limitations.
 
 **2. There is no clear evidence that council-recorded trees cause blockages.**
-- **Per tree within 5 m:** −2% per tree (95% CI −6% to +2%), after allowing for material, age, size, depth and relining.
+- **Per tree within 5 m:** −2% per tree (95% CI −6% to +2%), after allowing for material, age, size and depth.
+  The same with relining added (−2%, −6% to +2%) and without the depth-unknown flag (−2%, −6% to +1%): the answer
+  doesn't depend on those choices.
 - **Root-aggressive genera** (willow, poplar, gum, oak, ash, maple, elm, plane, birch, liquidambar) within 10 m are
   associated with **4% fewer** recorded blockages per tree (CI 1–6% fewer).
 
@@ -44,10 +46,11 @@ blockages happen. The likely culprits are **private garden trees over older late
 **where street trees are planted** (newer, wider streets with newer pipes).
 
 ## Recommended actions
-1. **Inspect the "Very high" band first:** 1,638 pipes, 50 km, holding 33% of recorded blockages. That includes
-   **1,311 Very high pipes with no recorded blockage yet**, the best candidates for proactive CCTV.
-2. **Prioritise small (100–150 mm), old (60+ years) asbestos-cement, concrete and earthenware pipes.** These are
-   the pipes the model consistently flags.
+1. **Inspect the "Very high" band first:** the top 5% of pipes, about 51 km (3% of the network). Measured on held-out
+   areas, that band holds **16%** of recorded blockages, about 5× its share of pipe length. The band shown on the map
+   comes from a model fitted to all pipes, so its pipes with no recorded blockage yet are the proactive-CCTV candidates.
+2. **Prioritise small (100–150 mm), old (60+ years) asbestos-cement and concrete pipes.** Earthenware is high-risk
+   in raw numbers, but mostly because it's old and narrow.
 3. **Don't target root cutting by council street-tree proximity alone;** the data doesn't support it. If roots are the
    concern, the evidence needed is **private-property tree and lateral data** or CCTV defect codes.
 4. **Fix data gaps that distort the picture:**
@@ -56,13 +59,17 @@ blockages happen. The likely culprits are **private garden trees over older late
    - grades recorded as "1 in 1" or similar.
 
 ## Business value
-For a fixed inspection budget covering 10% of the network, targeting by this model finds roughly **1.8× as many
-blockage-prone pipes** as targeting by material, and avoids spending on root cutting where the data shows no link.
+For a fixed inspection budget covering 10% of the network, targeting by this model covers roughly **1.8× as many
+recorded blockages** (31% vs 17%) as targeting by material, and avoids spending on root cutting where the data shows no link.
 
 ## Limitations
 - **Undated, cumulative counts:** there are no trends, and blockages before a pipe was relined are mixed with later ones.
-- **Observational data:** relining is done *because* pipes block, so it's used only as a control and never in the risk
-  score.
+- **Observational data:** relining is done *because* pipes block, so it's left out of the lead model (adjusting for a
+  consequence of blockages can hide real effects) and never used in the risk score. Including it changes nothing material.
+- **Age and exposure:** counts are all-time with a length offset only, so part of the age effect is simply time in service.
+- **Possible recording bias:** pipes with unknown depth have far fewer recorded blockages (×0.25); blocked pipes may
+  get surveyed afterwards. The tree answer is the same without that flag.
+- **Risk scores on the map are in-sample** (model fitted to all pipes); every accuracy figure quoted here is out of sample.
 - **Install dates are mostly year-level estimates** (recorded as 31 December of a year), so ages are approximate.
 - **Tree coverage:** only trees the council records individually; private trees are invisible here.
 - **The root-aggressive genus list** is a common rule-of-thumb list from arborist and water-utility guidance, not

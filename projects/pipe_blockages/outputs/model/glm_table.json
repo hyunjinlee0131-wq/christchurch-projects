@@ -2,100 +2,94 @@
   "terms": [
     {
       "term": "material: Asbestos cement",
-      "irr": 1.6758,
-      "ci_low": 1.3,
-      "ci_high": 2.1603,
+      "irr": 1.6819,
+      "ci_low": 1.3055,
+      "ci_high": 2.1668,
       "p": 0.0001
     },
     {
       "term": "material: Concrete",
-      "irr": 1.4948,
-      "ci_low": 1.1911,
-      "ci_high": 1.876,
-      "p": 0.0005
+      "irr": 1.5035,
+      "ci_low": 1.1999,
+      "ci_high": 1.884,
+      "p": 0.0004
     },
     {
       "term": "material: Earthenware",
-      "irr": 1.2243,
-      "ci_low": 0.8903,
-      "ci_high": 1.6834,
-      "p": 0.2131
+      "irr": 1.2145,
+      "ci_low": 0.8839,
+      "ci_high": 1.6689,
+      "p": 0.2306
     },
     {
       "term": "material: Metal",
-      "irr": 3.4387,
-      "ci_low": 2.0422,
-      "ci_high": 5.7899,
+      "irr": 3.4584,
+      "ci_low": 2.0555,
+      "ci_high": 5.8187,
       "p": 0.0
     },
     {
       "term": "diameter (per 100 mm)",
-      "irr": 0.349,
-      "ci_low": 0.2954,
-      "ci_high": 0.4124,
+      "irr": 0.3482,
+      "ci_low": 0.2947,
+      "ci_high": 0.4115,
       "p": 0.0
     },
     {
       "term": "age (per 10 years)",
-      "irr": 1.1499,
-      "ci_low": 1.1066,
-      "ci_high": 1.1949,
+      "irr": 1.1469,
+      "ci_low": 1.105,
+      "ci_high": 1.1903,
       "p": 0.0
     },
     {
       "term": "depth (per m)",
-      "irr": 0.9817,
-      "ci_low": 0.873,
-      "ci_high": 1.1039,
-      "p": 0.7576
+      "irr": 0.98,
+      "ci_low": 0.8716,
+      "ci_high": 1.1019,
+      "p": 0.7352
     },
     {
       "term": "depth_missing",
-      "irr": 0.2458,
-      "ci_low": 0.1777,
-      "ci_high": 0.3399,
+      "irr": 0.2459,
+      "ci_low": 0.1778,
+      "ci_high": 0.3401,
       "p": 0.0
     },
     {
       "term": "slope (per 1%)",
-      "irr": 1.0449,
-      "ci_low": 1.0228,
-      "ci_high": 1.0674,
+      "irr": 1.045,
+      "ci_low": 1.0229,
+      "ci_high": 1.0676,
       "p": 0.0001
     },
     {
       "term": "grade_missing",
-      "irr": 3.1756,
-      "ci_low": 2.5243,
-      "ci_high": 3.9949,
+      "irr": 3.1883,
+      "ci_low": 2.5359,
+      "ci_high": 4.0086,
       "p": 0.0
-    },
-    {
-      "term": "relined",
-      "irr": 0.9376,
-      "ci_low": 0.7459,
-      "ci_high": 1.1787,
-      "p": 0.5813
     },
     {
       "term": "trees_5m",
       "irr": 0.98,
       "ci_low": 0.9445,
       "ci_high": 1.0168,
-      "p": 0.2828
+      "p": 0.2826
     },
     {
       "term": "aggressive_trees_10m",
-      "irr": 0.964,
-      "ci_low": 0.9412,
-      "ci_high": 0.9873,
-      "p": 0.0027
+      "irr": 0.9638,
+      "ci_low": 0.941,
+      "ci_high": 0.9872,
+      "p": 0.0025
     }
   ],
-  "alpha": 10.031,
-  "aic": 12562.3,
+  "alpha": 10.028,
+  "aic": 12560.6,
   "dropped": [
     "material Other/unknown (95 pipes, no recorded blockages) not modelled",
-    "age_missing: those 12 pipes have no recorded blockages"
+    "age_missing: those 12 pipes have no recorded blockages",
+    "relined: left out on purpose"
   ]
 }

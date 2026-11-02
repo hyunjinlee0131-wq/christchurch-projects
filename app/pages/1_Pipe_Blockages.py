@@ -14,6 +14,10 @@ from lib.text import pct, plural
 
 st.set_page_config(page_title="Sewer pipe blockages · Christchurch Projects", page_icon="🚰", layout="wide")
 
+MAX_ROWS = 500
+DRIVER_LABELS = {"diameter (per 100 mm)": "Each extra 100 mm wide", "age (per 10 years)": "Each extra 10 years old",
+                 "slope (per 1%)": "Each extra 1% of slope", "depth (per m)": "Each extra metre deep",
+                 "trees_5m": "Each tree within 5 m", "aggressive_trees_10m": "Each root-aggressive tree within 10 m"}
 BAND_COLOURS = {"Very high": [179, 38, 30], "High": [230, 126, 34], "Medium": [241, 196, 15], "Low": [160, 170, 166]}
 COLUMNS = {"street": "Street", "material": "Material", "age_years": "Age (yrs)", "diameter_mm": "Diameter (mm)",
            "blockages": "Recorded blockages", "risk_band": "Risk", "reason": "Main reasons"}
@@ -29,15 +33,12 @@ c1, c2, c3, c4 = st.columns(4)
 c1.metric("Sewer pipes analysed", f"{m['n_pipes']:,}", help=f"{m['km']:,.0f} km of in-service council gravity pipes")
 c2.metric("Recorded blockages", f"{m['total_blockages']:,}", help="All time, undated, on " + plural(m["n_blocked"], "pipe"))
 eff = m["tree_effect"]
-c3.metric("Effect of a tree within 5 m", f"{eff['irr_per_tree_5m'] - 1:+.0%}",
-          help=f"95% CI {eff['ci'][0] - 1:+.0%} to {eff['ci'][1] - 1:+.0%}: no clear evidence")
-c4.metric("Blockages in riskiest 10% of pipe", pct(m["cv"]["top_decile_capture"]),
-          help=f"vs {pct(m['cv']['baseline_top_decile_capture'])} ranking by material alone")
+c3.metric("Effect of a tree within 5 m", eff["metric"],
+          help=f"95% CI {eff['ci'][0] - 1:+.0%} to {eff['ci'][1] - 1:+.0%}" + ("" if eff["clear"] else ": no clear evidence"))
+c4.metric("Blockages in riskiest 10% of pipe length", pct(m["cv"]["top_decile_capture"]),
+          help=f"Measured on areas the model never saw; vs {pct(m['cv']['baseline_top_decile_capture'])} ranking by material alone")
 
-st.markdown(
-    f"**Short answer:** {m['headline']} Small, old pipes block most: each extra 10 years of age adds about 15%, and "
-    f"each extra 100 mm of diameter cuts blockages by about two-thirds."
-)
+st.markdown(f"**Short answer:** {m['headline']} {m.get('answer', '')}")
 
 if feedback_enabled():
     f1, f2, f3 = st.columns([1, 1, 6])
@@ -74,10 +75,13 @@ q = st.text_input("Street name", key="street", placeholder="e.g. Main Road")
 if q.strip():
     hits = search_street(pipes, q)
     if hits.empty:
-        st.info(f"No pipes found on a street matching “{q.strip()}”.")
+        st.info(f"No pipes found on a street matching “{q.strip()}”. About 9% of pipes have no street within 40 m "
+                "and can't be found by name; use the map.")
     else:
-        st.write(f"{plural(len(hits), 'pipe')} on streets matching “{q.strip()}”, riskiest first:")
-        st.dataframe(hits.sort_values("risk_pct", ascending=False)[list(COLUMNS)].rename(columns=COLUMNS),
+        shown = hits.sort_values("risk_pct", ascending=False).head(MAX_ROWS)
+        more = f" (showing the riskiest {MAX_ROWS}; type more of the name to narrow it)" if len(hits) > MAX_ROWS else ""
+        st.write(f"{plural(len(hits), 'pipe')} on streets matching “{q.strip()}”, riskiest first{more}:")
+        st.dataframe(shown[list(COLUMNS)].rename(columns=COLUMNS),
                      hide_index=True, use_container_width=True)
 
 # ---- What to inspect first ----
@@ -95,11 +99,13 @@ left.bar_chart(rates, horizontal=True, color="#1f6f5c")
 left.caption("Before allowing for age and size. Old, small asbestos-cement, concrete and earthenware pipes are the "
              "ones to look at first.")
 drivers = pd.DataFrame(m["drivers"])
-drivers = drivers[~drivers["term"].str.endswith("_missing")]
+drivers = drivers[~drivers["term"].str.endswith("_missing") & (drivers["term"] != "relined")]
+drivers["term"] = drivers["term"].map(lambda t: DRIVER_LABELS.get(t, t.replace("material: ", "") + " (vs plastic)"))
 drivers["effect"] = drivers["irr"] - 1
 right.markdown("**Effect of each factor, all else equal** (change in recorded blockages)")
 right.bar_chart(drivers.set_index("term")["effect"].sort_values(), horizontal=True, color="#1f6f5c")
-right.caption("Bars right of zero raise blockages, left lower them. Trees within 5 m have no clear effect.")
+right.caption("Bars right of zero go with more blockages, left with fewer. "
+              + ("Trees within 5 m: no clear effect." if not eff["clear"] else f"Trees within 5 m: {eff['short']}."))
 
 with st.expander("How this was worked out"):
     st.markdown(f"""
@@ -108,7 +114,11 @@ with st.expander("How this was worked out"):
 - **Pipes:** {m['n_pipes']:,} in-service, council-owned gravity sewer pipes. Pressure and vacuum pipes fail differently and are left out.
 - **Blockages** are all-time, undated counts, so there are no trends. Results are associations, not proof of cause.
 - **Models:** a negative-binomial model (for the effect sizes and the tree question) and a gradient-boosted model
-  (for each pipe's risk and its reasons, via SHAP). Both are tested on areas they never saw (1 km grid cells held out).
+  (for each pipe's risk and its reasons, via SHAP). The headline accuracy figures are measured on areas the models
+  never saw (1 km grid cells held out). The risk shown for each pipe on this page comes from a model fitted to all
+  pipes, so treat it as a priority list, not a forecast. Out of sample, the "Very high" 5% of pipes held
+  {pct(m['very_high_out_of_sample']['share'])} of recorded blockages.
+- **Age:** blockage counts are all-time, so older pipes have also simply had longer to block.
 - **Trees:** only trees the council records individually. Private garden trees, often blamed for roots in older
   sewers, are not in the data.
 - **Relining** is done *because* pipes block, so it's never used to rank risk.

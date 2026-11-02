@@ -161,7 +161,7 @@ test("pipes page shows headline finding and tool link or coming-soon", async ({ 
   await page.goto("pipes/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("sewer pipes");
   await expect(page.locator(".headline")).toContainText("riskiest 10%");
-  await expect(page.locator(".tree-answer")).toContainText("no clear evidence");
+  await expect(page.locator(".tree-answer")).toContainText("95% CI"); // wording is generated from the CI
   const link = page.locator("#open-tool");
   const soon = page.getByText("Interactive tool coming soon");
   expect((await link.count()) + (await soon.count())).toBeGreaterThan(0);

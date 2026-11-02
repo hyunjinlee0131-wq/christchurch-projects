@@ -47,7 +47,7 @@
     "figures/rate_by_trees.png",
     "figures/rate_by_trees_material.png"
   ],
-  "git_sha": "e47951829ab88f5df47dab41dbf7b028322f0ca5",
+  "git_sha": "653d860bee5d27f8be5f235738c6e736bc128a67",
   "transform_log": [
     {
       "step": "keep gravity pipes",

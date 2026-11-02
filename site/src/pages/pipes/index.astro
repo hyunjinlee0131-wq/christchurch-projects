@@ -39,12 +39,12 @@ const clear = (d: { ci: number[] }) => !(d.ci[0] < 1 && d.ci[1] > 1);
     <section class="stats" aria-label="Key numbers">
       <div class="card stat"><span class="n">{m.n_pipes.toLocaleString("en-NZ")}</span><span>sewer pipes analysed ({Math.round(m.km).toLocaleString("en-NZ")} km)</span></div>
       <div class="card stat"><span class="n">{m.total_blockages.toLocaleString("en-NZ")}</span><span>recorded blockages (all time)</span></div>
-      <div class="card stat"><span class="n">{pctOf(m.cv.top_decile_capture)}</span><span>of blockages in the riskiest 10% of pipe, vs {pctOf(m.cv.baseline_top_decile_capture)} by material alone</span></div>
+      <div class="card stat"><span class="n">{pctOf(m.cv.top_decile_capture)}</span><span>of blockages in the riskiest 10% of pipe length (measured on held-out areas), vs {pctOf(m.cv.baseline_top_decile_capture)} by material alone</span></div>
     </section>
 
     <section aria-labelledby="trees-h">
       <h2 id="trees-h">Do trees cause blockages?</h2>
-      <p class="tree-answer"><strong>{eff.sentence.replace("There is no clear evidence", "There is no clear evidence")}</strong></p>
+      <p class="tree-answer"><strong>{eff.sentence}</strong></p>
       <p>That doesn't mean roots never block sewers. The council's open data records street and park trees, not
         private garden trees, which are the usual suspects for roots in older household connections. Where street trees
         are planted (newer, wider streets with newer pipes) also hides any effect.</p>
@@ -73,7 +73,7 @@ const clear = (d: { ci: number[] }) => !(d.ci[0] < 1 && d.ci[1] > 1);
         <figure class="card"><img src={fig("rate_by_material")} alt="Bar chart: recorded blockages per km by pipe material. Earthenware, asbestos cement and concrete are highest; plastic lowest." loading="lazy" />
           <figcaption>Blockages per km by material, before allowing for age and size.</figcaption></figure>
         <figure class="card"><img src={fig("rate_by_trees")} alt="Bar chart: blockages per km by number of recorded trees within 5 m. Pipes with no recorded trees have the highest rate." loading="lazy" />
-          <figcaption>Pipes with <em>no</em> recorded trees nearby block most. That's a location effect, not trees protecting pipes.</figcaption></figure>
+          <figcaption>Pipes with <em>no</em> recorded trees nearby block most. Most likely a location effect, not trees protecting pipes.</figcaption></figure>
         <figure class="card"><img src={fig("rate_by_age_material")} alt="Line chart: blockage rate rises with pipe age for older materials." loading="lazy" />
           <figcaption>Older pipes block more. Very old "plastic" pipes are renewed pipes that kept their original install date.</figcaption></figure>
       </div>

@@ -65,7 +65,7 @@ def _glm_frame(df: pd.DataFrame) -> pd.DataFrame:
     return d
 
 
-def _estimable(d: pd.DataFrame) -> tuple[pd.DataFrame, list[str], list[str]]:
+def _estimable(d: pd.DataFrame, exclude: tuple[str, ...] = ()) -> tuple[pd.DataFrame, list[str], list[str]]:
     """Drop what a count model can't estimate: groups or flags with no recorded blockages (infinite CIs)."""
     dropped = []
     events = d.groupby("material")["blockages"].sum()
@@ -78,7 +78,9 @@ def _estimable(d: pd.DataFrame) -> tuple[pd.DataFrame, list[str], list[str]]:
     for f in FEATURES_GLM:
         if f == "material":
             continue
-        if d[f].nunique() < 2:
+        if f in exclude:
+            dropped.append(f"{f}: left out on purpose")
+        elif d[f].nunique() < 2:
             dropped.append(f"{f}: no variation")
         elif f.endswith("_missing") or f == "relined":
             if d.loc[d[f] == 1, "blockages"].sum() == 0:
@@ -95,8 +97,10 @@ def _formula(d: pd.DataFrame, terms: list[str]) -> str:
     return "blockages ~ " + " + ".join([f"C(material, Treatment('{ref}'))", *terms])
 
 
-def fit_glm(df: pd.DataFrame) -> GlmResult:
-    d, terms, dropped = _estimable(_glm_frame(df))
+def fit_glm(df: pd.DataFrame, exclude: tuple[str, ...] = ()) -> GlmResult:
+    """exclude: terms to leave out, e.g. ("relined",) — relining is a consequence of blockages, so adjusting for
+    it can hide the very effects we ask about; the lead tree estimate is fitted without it."""
+    d, terms, dropped = _estimable(_glm_frame(df), exclude)
     formula = _formula(d, terms)
     # α by maximum likelihood (NB2), then a GLM with that α for clean IRRs and CIs.
     nb = smf.negativebinomial(formula, d, offset=d["log_len"]).fit(disp=0, maxiter=200)
@@ -117,8 +121,8 @@ def fit_glm(df: pd.DataFrame) -> GlmResult:
     return GlmResult(pd.DataFrame(rows), alpha, float(glm.aic), glm, dropped)
 
 
-def _effect_sentence(irr: float, lo: float, hi: float, what: str) -> str:
-    controls = "after allowing for pipe material, age, size, depth and relining"
+def _effect_sentence(irr: float, lo: float, hi: float, what: str,
+                     controls: str = "after allowing for pipe material, age, size and depth") -> str:
     if lo < 1 < hi:
         return (f"There is no clear evidence that {what} changes recorded blockages ({irr - 1:+.0%} per tree, "
                 f"95% CI {lo - 1:+.0%} to {hi - 1:+.0%}), {controls}.")
@@ -240,3 +244,29 @@ def risk_band(pct: float) -> str:
     if pct >= 50:
         return "Medium"
     return "Low"
+
+
+def tree_claim(irr: float, ci: list[float]) -> dict:
+    """The tree finding in words, always derived from the CI (so a refresh can't leave stale wording)."""
+    lo, hi = ci
+    if lo < 1 < hi:
+        return {"clear": False, "short": "no clear evidence", "metric": f"{irr - 1:+.0%}"}
+    word = "more" if irr > 1 else "fewer"
+    return {"clear": True, "short": f"{irr - 1:+.0%} per tree ({word} recorded blockages)", "metric": f"{irr - 1:+.0%}"}
+
+
+def headline(top_decile_capture: float, top10_km: float, claim: dict) -> str:
+    tail = ("but there is no clear sign that council-recorded street trees cause them" if not claim["clear"]
+            else f"and each council-recorded tree within 5 m goes with {claim['short']}")
+    return (f"The riskiest 10% of sewer pipe length ({top10_km:,.0f} km) holds {top_decile_capture:.0%} of recorded "
+            f"blockages, {tail}.")
+
+
+def band_capture(rate: np.ndarray, blockages: np.ndarray, length: np.ndarray, top_pct: float = 5) -> dict:
+    """Pipes in the top `top_pct`% by predicted rate (by pipe count, like risk bands) and the blockages they hold."""
+    cut = np.percentile(rate, 100 - top_pct)
+    sel = rate >= cut if top_pct < 100 else np.ones_like(rate, bool)
+    sel &= rate > 0
+    k = int(sel.sum())
+    return {"pipes": k, "km": round(float(length[sel].sum()) / 1000, 2), "blockages": int(blockages[sel].sum()),
+            "share": round(float(blockages[sel].sum() / max(1, blockages.sum())), 4)}

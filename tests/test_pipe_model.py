@@ -107,3 +107,35 @@ def test_glm_handles_groups_with_no_events():
     assert np.isfinite(t[["irr", "ci_low", "ci_high"]].to_numpy()).all()
     assert "age_missing" not in set(t.term) and not any(t.term.str.contains("Other"))
     assert glm.dropped  # says what was left out and why
+
+
+# ---- final-review fixes ----
+from projects.pipe_blockages.model import band_capture, headline, tree_claim
+
+
+def test_fit_glm_can_exclude_terms():
+    glm = fit_glm(SIM, exclude=("relined",))
+    assert "relined" not in set(glm.table.term)
+    assert "trees_5m" in set(glm.table.term)
+
+
+def test_tree_claim_follows_the_ci():
+    unclear = tree_claim(0.98, [0.94, 1.02])
+    assert unclear["clear"] is False and "no clear" in unclear["short"]
+    clear_up = tree_claim(1.10, [1.04, 1.16])
+    assert clear_up["clear"] is True and "no clear" not in clear_up["short"] and "+10%" in clear_up["short"]
+
+
+def test_headline_follows_the_ci():
+    h1 = headline(0.31, 165, tree_claim(0.98, [0.94, 1.02]))
+    assert "31%" in h1 and "no clear sign" in h1
+    h2 = headline(0.31, 165, tree_claim(1.10, [1.04, 1.16]))
+    assert "no clear sign" not in h2 and "more" in h2
+
+
+def test_band_capture_uses_given_predictions():
+    rate = np.array([10.0, 1.0, 0.5, 0.1])
+    blockages = np.array([3, 1, 0, 0])
+    length = np.array([10.0, 10.0, 10.0, 10.0])
+    out = band_capture(rate, blockages, length, top_pct=25)
+    assert out == {"pipes": 1, "km": 0.01, "blockages": 3, "share": 0.75}

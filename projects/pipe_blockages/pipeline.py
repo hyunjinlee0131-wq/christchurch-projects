@@ -98,12 +98,17 @@ def run(*, refresh: bool = False, out_dir: Path = OUT) -> Path:
 
     from ccc_data import project, write_manifest
 
-    from .model import baseline_rates, cv_gbm, fit_gbm_and_explain, fit_glm, reasons, risk_band, tree_effect
+    from .model import (band_capture, baseline_rates, cv_gbm, fit_gbm_and_explain, fit_glm, headline, reasons,
+                        risk_band, tree_claim, tree_effect)
 
     table, log = build_table(refresh=refresh)
     rates = baseline_rates(table)
-    glm = fit_glm(table)
+    # Lead model leaves relining out: pipes are relined *because* they blocked, so adjusting for it can hide effects.
+    glm = fit_glm(table, exclude=("relined",))
     eff = tree_effect(glm)
+    claim = tree_claim(eff["irr_per_tree_5m"], eff["ci"])
+    sens = {"with_relined": tree_effect(fit_glm(table)),
+            "without_depth_missing": tree_effect(fit_glm(table, exclude=("relined", "depth_missing")))}
     t = glm.table.set_index("term")
     aggr = t.loc["aggressive_trees_10m"]
     cv = cv_gbm(table, table["cell"])
@@ -141,7 +146,11 @@ def run(*, refresh: bool = False, out_dir: Path = OUT) -> Path:
         "n_pipes": int(len(df)), "km": round(float(km), 1), "n_blocked": int((df.blockages > 0).sum()),
         "total_blockages": int(df.blockages.sum()),
         "tree_effect": {"irr_per_tree_5m": round(float(eff["irr_per_tree_5m"]), 4), "ci": [round(float(x), 4) for x in eff["ci"]],
-                        "p": round(float(eff["p"]), 4), "sentence": eff["sentence"]},
+                        "p": round(float(eff["p"]), 4), "sentence": eff["sentence"], **claim},
+        "tree_effect_sensitivity": {k: {"irr_per_tree_5m": round(float(v["irr_per_tree_5m"]), 4),
+                                        "ci": [round(float(x), 4) for x in v["ci"]]} for k, v in sens.items()},
+        "very_high_out_of_sample": band_capture(cv["oof_pred"] / table["length_m"].to_numpy(), table["blockages"].to_numpy(),
+                                                table["length_m"].to_numpy(), top_pct=5),
         "aggressive_effect": {"irr": round(float(aggr.irr), 4), "ci": [round(float(aggr.ci_low), 4), round(float(aggr.ci_high), 4)],
                               "p": round(float(aggr.p), 4)},
         "cv": {"top_decile_capture": round(cv["top_decile_capture"], 4), "glm_top_decile_capture": round(cv["glm_top_decile_capture"], 4),
@@ -151,14 +160,32 @@ def run(*, refresh: bool = False, out_dir: Path = OUT) -> Path:
                                "km": round(float(r.km), 1), "blockages": int(r.blockages)} for r in rates.itertuples() if r.km >= 5],
         "drivers": [{"term": r.term, "irr": round(r.irr, 3), "ci": [round(r.ci_low, 3), round(r.ci_high, 3)], "p": round(r.p, 4)}
                     for r in glm.table.itertuples()],
-        "headline": (f"The riskiest 10% of sewer pipes by length ({top10_km:,.0f} km) hold {cv['top_decile_capture']:.0%} of recorded "
-                     f"blockages, but there is no clear sign that council-recorded street trees cause them."),
+        "headline": headline(cv["top_decile_capture"], top10_km, claim),
+        "answer": _answer(glm.table),
     }
     (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
     figures = sorted((out_dir / "figures").glob("*.png"))
     write_manifest(SLUG, outputs=[out_dir / "pipes.parquet", out_dir / "metrics.json", out_dir / "model" / "glm_table.json",
                                   out_dir / "model" / "shap_importance.json", *figures], transform_log=log, root=HERE.parent)
     return out_dir
+
+
+def _answer(table) -> str:
+    """Plain-language summary of the clearest drivers, built from the fitted model (never hard-coded)."""
+    t = table.set_index("term")
+
+    def pct(term: str) -> str | None:
+        if term not in t.index or t.loc[term, "ci_low"] < 1 < t.loc[term, "ci_high"]:
+            return None
+        irr = t.loc[term, "irr"]
+        return f"{irr - 1:+.0%}" if irr >= 1 else f"{irr - 1:+.0%}"
+
+    parts = []
+    if (a := pct("age (per 10 years)")):
+        parts.append(f"older pipes have more recorded blockages ({a} per extra 10 years, partly because they've had longer to block)")
+    if (d := pct("diameter (per 100 mm)")):
+        parts.append(f"wider pipes have fewer ({d} per extra 100 mm)")
+    return ("Small, old pipes stand out: " + "; ".join(parts) + ".") if parts else ""
 
 
 def check(out_dir: Path = OUT) -> None:
@@ -179,6 +206,9 @@ def check(out_dir: Path = OUT) -> None:
     assert not df["reason"].str.contains(r"\bsafe\b", case=False).any(), "a reason calls a pipe safe"
     eff = m["tree_effect"]
     assert eff["ci"][0] <= eff["irr_per_tree_5m"] <= eff["ci"][1], "tree effect CI does not contain the estimate"
+    unclear = eff["ci"][0] < 1 < eff["ci"][1]
+    assert ("no clear sign" in m["headline"]) == unclear, "headline contradicts the tree-effect CI"
+    assert ("no clear evidence" in eff["sentence"]) == unclear and eff["clear"] == (not unclear), "tree wording contradicts the CI"
     for path in df["path"]:
         assert len(path) >= 2, "pipe path too short"
         for lon, lat in path:
