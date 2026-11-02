@@ -16,6 +16,8 @@ for (const name of readdirSync(projects)) {
     const dest = join(site, target, name);
     mkdirSync(dest, { recursive: true });
     for (const f of readdirSync(out)) if (/\.(json|geojson)$/.test(f)) cpSync(join(out, f), join(dest, f));
+    const figs = join(out, "figures");
+    if (target === "public/data" && existsSync(figs)) cpSync(figs, join(dest, "figures"), { recursive: true });
   }
   n++;
 }

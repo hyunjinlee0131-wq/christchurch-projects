@@ -9,6 +9,7 @@ Values go in **GitHub → repo Settings → Secrets and variables → Actions �
 | `PUBLIC_SUPABASE_ANON_KEY` | (same) | Supabase project → Settings → API → `anon` `public` key |
 | `PUBLIC_GA4_ID` | Visitor analytics | Google Analytics → Admin → Data streams → Web → Measurement ID (`G-…`) |
 | `PUBLIC_FEEDBACK_FORM_URL` | "Tell us what you think" links | Your Google Form's share link |
+| `PUBLIC_STREAMLIT_URL` | "Open the interactive tool" buttons on the site | Your Streamlit app's address, e.g. `https://xyz.streamlit.app` |
 | `PUBLIC_LINZ_API_KEY` (optional) | Only if LINZ starts requiring a key for the People's Choice aerial photos | <https://basemaps.linz.govt.nz> → Developer → API key |
 
 After adding or changing secrets, re-run the deploy: **Actions → Deploy site → Run workflow**.
@@ -61,3 +62,17 @@ Settings → Actions → General → Workflow permissions → tick **Allow GitHu
 
 Pages is published by `.github/workflows/deploy.yml` on every push to `main`. If it was never enabled:
 Settings → Pages → Build and deployment → Source: **GitHub Actions**.
+
+## Streamlit (interactive tools)
+
+1. <https://share.streamlit.io> → sign in with GitHub → **Create app** → *Deploy a public app from GitHub*.
+2. Repository `hyunjinlee0131-wq/christchurch-projects`, branch `main`, main file path **`app/Home.py`**.
+3. Advanced settings → Python **3.13**; Secrets:
+   ```toml
+   SUPABASE_URL = "https://YOUR-PROJECT.supabase.co"
+   SUPABASE_ANON_KEY = "YOUR-ANON-KEY"
+   ```
+   (Optional; without them the 👍/👎 buttons are hidden.)
+4. The app installs only `app/requirements.txt` (no geospatial or modelling packages) and reads the committed
+   `projects/*/outputs`. It updates itself when `main` changes.
+5. Put the app address in the `PUBLIC_STREAMLIT_URL` secret and re-run **Deploy site**, so the website links to it.

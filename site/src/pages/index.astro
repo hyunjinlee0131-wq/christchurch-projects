@@ -2,6 +2,7 @@
 import Base from "../layouts/Base.astro";
 import parkMetrics from "../data/best_park/metrics.json";
 import parks from "../data/best_park/parks.json";
+import pipeMetrics from "../data/pipe_blockages/metrics.json";
 
 const base = import.meta.env.BASE_URL;
 // Only live projects are listed (design: each project goes live when it passes the quality bar).
@@ -12,6 +13,13 @@ const projects = [
     title: "Best Park in Christchurch",
     headline: `#1: ${parkMetrics.top5[0]}`,
     blurb: `All ${parkMetrics.n_parks} parks ranked by what's in them. Sort by what you care about, find parks near you, and vote for your favourite.`,
+  },
+  {
+    href: `${base}pipes/`,
+    kind: "Serious · tool",
+    title: "Which sewer pipes block, and do trees cause it?",
+    headline: `Riskiest 10% of pipes hold ${Math.round(pipeMetrics.cv.top_decile_capture * 100)}% of blockages`,
+    blurb: `${pipeMetrics.n_pipes.toLocaleString("en-NZ")} sewer pipes ranked by blockage risk, with a straight answer on street trees.`,
   },
 ];
 ---
@@ -36,7 +44,7 @@ const projects = [
         </li>
       ))}
     </ul>
-    <p class="muted more">More projects are on the way: flood and sea-level exposure, river health, parking, street lighting and more.</p>
+    <p class="muted more">More projects are on the way: sea-level exposure, river health, parking, street lighting and more.</p>
   </div>
 </Base>
 

@@ -1,0 +1,112 @@
+---
+import Base from "../../layouts/Base.astro";
+import Feedback from "../../components/Feedback.astro";
+import m from "../../data/pipe_blockages/metrics.json";
+import { STREAMLIT_URL } from "../../config";
+
+const base = import.meta.env.BASE_URL;
+const fig = (name: string) => `${base}data/pipe_blockages/figures/${name}.png`;
+const pctOf = (x: number) => `${Math.round(x * 100)}%`;
+const eff = m.tree_effect;
+const toolUrl = STREAMLIT_URL ? `${STREAMLIT_URL}/Pipe_Blockages` : "";
+const drivers = m.drivers.filter((d) => !d.term.endsWith("_missing") && !["relined", "depth (per m)"].includes(d.term));
+const nice: Record<string, string> = {
+  "diameter (per 100 mm)": "Each extra 100 mm of diameter",
+  "age (per 10 years)": "Each extra 10 years of age",
+  "slope (per 1%)": "Each extra 1% of slope",
+  trees_5m: "Each tree within 5 m",
+  aggressive_trees_10m: "Each root-aggressive tree within 10 m",
+};
+const label = (t: string) => nice[t] ?? t.replace("material: ", "") + " pipe (vs plastic)";
+const change = (irr: number) => (irr >= 1 ? `+${Math.round((irr - 1) * 100)}%` : `−${Math.round((1 - irr) * 100)}%`);
+const clear = (d: { ci: number[] }) => !(d.ci[0] < 1 && d.ci[1] > 1);
+---
+<Base
+  title="Which sewer pipes block, and do trees cause it? · Christchurch Projects"
+  description={m.headline}
+  dataPulledAt={m.data_pulled_at}
+>
+  <div class="wrap">
+    <h1>Which sewer pipes block, and do trees cause it?</h1>
+    <p class="headline">{m.headline}</p>
+
+    <div class="cta">
+      {toolUrl
+        ? <a id="open-tool" class="btn btn-primary" href={toolUrl}>Open the interactive tool: map, your street, top 20 to inspect →</a>
+        : <p class="muted">Interactive tool coming soon.</p>}
+    </div>
+
+    <section class="stats" aria-label="Key numbers">
+      <div class="card stat"><span class="n">{m.n_pipes.toLocaleString("en-NZ")}</span><span>sewer pipes analysed ({Math.round(m.km).toLocaleString("en-NZ")} km)</span></div>
+      <div class="card stat"><span class="n">{m.total_blockages.toLocaleString("en-NZ")}</span><span>recorded blockages (all time)</span></div>
+      <div class="card stat"><span class="n">{pctOf(m.cv.top_decile_capture)}</span><span>of blockages in the riskiest 10% of pipe, vs {pctOf(m.cv.baseline_top_decile_capture)} by material alone</span></div>
+    </section>
+
+    <section aria-labelledby="trees-h">
+      <h2 id="trees-h">Do trees cause blockages?</h2>
+      <p class="tree-answer"><strong>{eff.sentence.replace("There is no clear evidence", "There is no clear evidence")}</strong></p>
+      <p>That doesn't mean roots never block sewers. The council's open data records street and park trees, not
+        private garden trees, which are the usual suspects for roots in older household connections. Where street trees
+        are planted (newer, wider streets with newer pipes) also hides any effect.</p>
+    </section>
+
+    <section aria-labelledby="drivers-h">
+      <h2 id="drivers-h">What does make a pipe block</h2>
+      <p class="muted">Change in recorded blockages, with everything else held equal (95% confidence interval).</p>
+      <table>
+        <thead><tr><th scope="col">Factor</th><th scope="col">Effect</th><th scope="col">Range</th></tr></thead>
+        <tbody>
+          {drivers.map((d) => (
+            <tr class={clear(d) ? "" : "muted"}>
+              <td>{label(d.term)}</td>
+              <td><strong>{change(d.irr)}</strong></td>
+              <td>{change(d.ci[0])} to {change(d.ci[1])}{clear(d) ? "" : " (not clear)"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+
+    <section aria-labelledby="charts-h">
+      <h2 id="charts-h">The evidence</h2>
+      <div class="figs">
+        <figure class="card"><img src={fig("rate_by_material")} alt="Bar chart: recorded blockages per km by pipe material. Earthenware, asbestos cement and concrete are highest; plastic lowest." loading="lazy" />
+          <figcaption>Blockages per km by material, before allowing for age and size.</figcaption></figure>
+        <figure class="card"><img src={fig("rate_by_trees")} alt="Bar chart: blockages per km by number of recorded trees within 5 m. Pipes with no recorded trees have the highest rate." loading="lazy" />
+          <figcaption>Pipes with <em>no</em> recorded trees nearby block most. That's a location effect, not trees protecting pipes.</figcaption></figure>
+        <figure class="card"><img src={fig("rate_by_age_material")} alt="Line chart: blockage rate rises with pipe age for older materials." loading="lazy" />
+          <figcaption>Older pipes block more. Very old "plastic" pipes are renewed pipes that kept their original install date.</figcaption></figure>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="how-h">
+      <h2 id="how-h">About this analysis</h2>
+      <ul>
+        <li>In-service, council-owned gravity sewer pipes; recorded blockages are all-time and undated, so there are no trends.</li>
+        <li>Findings are associations, not proof of cause. Relined pipes are relined <em>because</em> they blocked, so relining is never used to rank risk.</li>
+        <li>Validated on areas the model never saw (1 km grid cells held out).</li>
+        <li>Full write-up: <a href="https://github.com/hyunjinlee0131-wq/christchurch-projects/blob/main/projects/pipe_blockages/SUMMARY.md">executive summary</a>{" "}and{" "}
+          <a href="https://github.com/hyunjinlee0131-wq/christchurch-projects/blob/main/projects/pipe_blockages/eda.ipynb">analysis notebook</a>.</li>
+      </ul>
+    </section>
+
+    <Feedback project="pipe_blockages" itemId="summary" question="Was this useful?" />
+  </div>
+</Base>
+
+<style>
+  .headline { font-size: 1.2rem; font-weight: 600; max-width: 48rem; }
+  .cta { margin: 1rem 0 1.5rem; }
+  .cta .btn { display: inline-block; text-decoration: none; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  .stat { display: grid; gap: 0.25rem; }
+  .stat .n { font-size: 2rem; font-weight: 800; color: var(--accent); }
+  .tree-answer { font-size: 1.1rem; }
+  table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: var(--radius); margin-bottom: 2rem; }
+  th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid var(--border); }
+  th { font-size: 0.85rem; color: var(--muted); }
+  .figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  figure { margin: 0; }
+  figure img { width: 100%; height: auto; display: block; border-radius: 6px; background: #fff; }
+  figcaption { font-size: 0.9rem; color: var(--muted); margin-top: 0.5rem; }
+</style>

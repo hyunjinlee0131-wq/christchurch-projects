@@ -21,7 +21,7 @@ async function firstParkHref(page: Page) {
 test("home shows Best Park card with #1 park", async ({ page }) => {
   await page.goto("./");
   await expect(page.getByRole("heading", { name: "Christchurch Projects", level: 1 })).toBeVisible();
-  await expect(page.locator(".project .headline")).toContainText("#1:");
+  await expect(page.locator(".project").first().locator(".headline")).toContainText("#1:");
   await noHorizontalScroll(page);
 });
 
@@ -155,4 +155,29 @@ test("inline links keep their spaces", async ({ page }) => {
 test("feedback box hidden when nothing to show", async ({ page }) => {
   await page.goto(await firstParkHref(page));
   await expect(page.locator(".feedback")).toBeHidden();
+});
+
+test("pipes page shows headline finding and tool link or coming-soon", async ({ page }) => {
+  await page.goto("pipes/");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("sewer pipes");
+  await expect(page.locator(".headline")).toContainText("riskiest 10%");
+  await expect(page.locator(".tree-answer")).toContainText("no clear evidence");
+  const link = page.locator("#open-tool");
+  const soon = page.getByText("Interactive tool coming soon");
+  expect((await link.count()) + (await soon.count())).toBeGreaterThan(0);
+  await expect(page.locator("img[src$='rate_by_material.png']")).toBeVisible();
+  await noHorizontalScroll(page);
+});
+
+test("home lists both projects", async ({ page }) => {
+  await page.goto("./");
+  await expect(page.locator(".project")).toHaveCount(2);
+  await expect(page.locator(".project").nth(1)).toContainText("sewer pipes");
+});
+
+test("no serious or critical axe violations on pipes/", async ({ page }) => {
+  await page.goto("pipes/");
+  const res = await new AxeBuilder({ page }).analyze();
+  const bad = res.violations.filter((v) => v.impact === "serious" || v.impact === "critical");
+  expect(bad.map((v) => `${v.id}: ${v.nodes.length}`)).toEqual([]);
 });
