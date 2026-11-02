@@ -118,3 +118,9 @@ def test_grid_cell_groups_by_km():
     p = pipes([{}, {}])
     cells = grid_cell(p)
     assert cells.iloc[0] == cells.iloc[1] == f"{(X + 50) // 1000}_{Y // 1000}"
+
+
+def test_grade_one_in_n_becomes_slope_percent():
+    out = pipe_features(pipes([{"Grade": 200.0}, {"Grade": -100.0}, {"Grade": 0.0}, {"Grade": 0.5}]), as_of=date(2026, 1, 1))
+    assert out.grade.iloc[0] == pytest.approx(0.5) and out.grade.iloc[1] == pytest.approx(1.0)
+    assert list(out.grade_missing) == [False, False, True, True]

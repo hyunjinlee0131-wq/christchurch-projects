@@ -68,7 +68,9 @@ def pipe_features(pipes: gpd.GeoDataFrame, as_of: date) -> gpd.GeoDataFrame:
     by_material = age.groupby(out["material"]).transform("median")
     out["age_years"] = age.fillna(by_material).fillna(age.median() if age.notna().any() else 0.0).round(2)
     out["depth_m"], out["depth_missing"] = _median_fill(out["Depth"].astype(float))
-    out["grade"], out["grade_missing"] = _median_fill(out["Grade"].astype(float))
+    # CCC records grade as "1 in N" (median ~218; sign = flow direction). Convert to slope % = 100 / |N|.
+    n = out["Grade"].astype(float).abs()
+    out["grade"], out["grade_missing"] = _median_fill((100.0 / n).where(n >= 1.0))
     out["relined"] = out["Treatment"].notna()
     out["length_m"] = out["drvLength"].astype(float)
     return out
