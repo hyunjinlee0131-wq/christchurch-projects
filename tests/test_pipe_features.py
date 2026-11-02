@@ -121,6 +121,6 @@ def test_grid_cell_groups_by_km():
 
 
 def test_grade_one_in_n_becomes_slope_percent():
-    out = pipe_features(pipes([{"Grade": 200.0}, {"Grade": -100.0}, {"Grade": 0.0}, {"Grade": 0.5}]), as_of=date(2026, 1, 1))
+    out = pipe_features(pipes([{"Grade": 200.0}, {"Grade": -100.0}, {"Grade": 0.0}, {"Grade": 0.5}, {"Grade": 1.0}]), as_of=date(2026, 1, 1))
     assert out.grade.iloc[0] == pytest.approx(0.5) and out.grade.iloc[1] == pytest.approx(1.0)
-    assert list(out.grade_missing) == [False, False, True, True]
+    assert list(out.grade_missing) == [False, False, True, True, True]  # "1 in 1" (100% slope) is a data error

@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "data_pulled_at": "2026-11-02T09:09:38.555426+00:00",
+  "sources": [
+    {
+      "key": "ww_pipe",
+      "service": "WasteWater",
+      "name": "WwPipe",
+      "url": "https://gis.ccc.govt.nz/server/rest/services/OpenData/WasteWater/FeatureServer/1",
+      "count": 71854,
+      "pulled_at": "2026-11-02T09:09:38.555426+00:00"
+    },
+    {
+      "key": "blockage",
+      "service": "WasteWater",
+      "name": "WwPipeBlockageCount",
+      "url": "https://gis.ccc.govt.nz/server/rest/services/OpenData/WasteWater/FeatureServer/31",
+      "count": 1457,
+      "pulled_at": "2026-11-02T09:09:39.770435+00:00"
+    },
+    {
+      "key": "tree",
+      "service": "Tree",
+      "name": "Tree",
+      "url": "https://gis.ccc.govt.nz/server/rest/services/OpenData/Tree/FeatureServer/0",
+      "count": 183158,
+      "pulled_at": "2026-11-02T09:13:58.013113+00:00"
+    },
+    {
+      "key": "street",
+      "service": "Road",
+      "name": "StreetCentreLine",
+      "url": "https://gis.ccc.govt.nz/server/rest/services/OpenData/Road/FeatureServer/7",
+      "count": 12440,
+      "pulled_at": "2026-11-02T09:14:01.717516+00:00"
+    }
+  ],
+  "outputs": [
+    "pipes.parquet",
+    "metrics.json",
+    "model/glm_table.json",
+    "model/shap_importance.json",
+    "figures/map_top200.png",
+    "figures/rate_by_age_material.png",
+    "figures/rate_by_genus_group.png",
+    "figures/rate_by_material.png",
+    "figures/rate_by_trees.png",
+    "figures/rate_by_trees_material.png"
+  ],
+  "git_sha": "e47951829ab88f5df47dab41dbf7b028322f0ca5",
+  "transform_log": [
+    {
+      "step": "keep gravity pipes",
+      "rows_in": 71854,
+      "rows_out": 46609,
+      "dropped": 25245,
+      "note": "Type in ['Gravity', 'Gravity Collector']"
+    },
+    {
+      "step": "keep in-service pipes",
+      "rows_in": 46609,
+      "rows_out": 37035,
+      "dropped": 9574,
+      "note": "ServiceStatus == In Service"
+    },
+    {
+      "step": "keep council-owned pipes",
+      "rows_in": 37035,
+      "rows_out": 33116,
+      "dropped": 3919,
+      "note": "Ownership == CCC"
+    },
+    {
+      "step": "drop pipes under 1 m",
+      "rows_in": 33116,
+      "rows_out": 32438,
+      "dropped": 678,
+      "note": "log(length) offset needs length > 0"
+    },
+    {
+      "step": "blockage ids unmatched to population (dropped)",
+      "rows_in": 1457,
+      "rows_out": 1320,
+      "dropped": 137,
+      "note": "blocked pipes outside the modelled population (other types, abandoned, private)"
+    }
+  ]
+}

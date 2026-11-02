@@ -1,0 +1,54 @@
+[
+  {
+    "feature": "age_years",
+    "mean_abs_shap": 0.84947
+  },
+  {
+    "feature": "diameter_mm",
+    "mean_abs_shap": 0.47819
+  },
+  {
+    "feature": "grade",
+    "mean_abs_shap": 0.14106
+  },
+  {
+    "feature": "depth_m",
+    "mean_abs_shap": 0.11946
+  },
+  {
+    "feature": "material",
+    "mean_abs_shap": 0.0758
+  },
+  {
+    "feature": "trees_10m",
+    "mean_abs_shap": 0.06998
+  },
+  {
+    "feature": "depth_missing",
+    "mean_abs_shap": 0.04892
+  },
+  {
+    "feature": "crown_sum_10m",
+    "mean_abs_shap": 0.04279
+  },
+  {
+    "feature": "trees_per_100m_10m",
+    "mean_abs_shap": 0.03828
+  },
+  {
+    "feature": "grade_missing",
+    "mean_abs_shap": 0.03564
+  },
+  {
+    "feature": "aggressive_trees_10m",
+    "mean_abs_shap": 0.02546
+  },
+  {
+    "feature": "trees_5m",
+    "mean_abs_shap": 0.00957
+  },
+  {
+    "feature": "age_missing",
+    "mean_abs_shap": 0.0
+  }
+]

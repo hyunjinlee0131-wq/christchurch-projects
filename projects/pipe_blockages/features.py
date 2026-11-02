@@ -70,7 +70,8 @@ def pipe_features(pipes: gpd.GeoDataFrame, as_of: date) -> gpd.GeoDataFrame:
     out["depth_m"], out["depth_missing"] = _median_fill(out["Depth"].astype(float))
     # CCC records grade as "1 in N" (median ~218; sign = flow direction). Convert to slope % = 100 / |N|.
     n = out["Grade"].astype(float).abs()
-    out["grade"], out["grade_missing"] = _median_fill((100.0 / n).where(n >= 1.0))
+    # Steeper than 1 in 5 (20%) is not a real sewer grade: treat as a recording error.
+    out["grade"], out["grade_missing"] = _median_fill((100.0 / n).where(n >= 5.0))
     out["relined"] = out["Treatment"].notna()
     out["length_m"] = out["drvLength"].astype(float)
     return out

@@ -86,8 +86,113 @@ def build_table(*, refresh: bool = False, as_of: date | None = None) -> tuple[gp
     return table, log
 
 
+OUT = HERE / "outputs"
+APP_MAX_MB = 25.0
+LON, LAT = (172.3, 173.2), (-43.95, -43.35)
+
+
+def run(*, refresh: bool = False, out_dir: Path = OUT) -> Path:
+    """Full pipeline: table → models → outputs (pipes.parquet, metrics.json, model/*.json, manifest.json)."""
+    import numpy as np
+    import pandas as pd
+
+    from ccc_data import project, write_manifest
+
+    from .model import baseline_rates, cv_gbm, fit_gbm_and_explain, fit_glm, reasons, risk_band, tree_effect
+
+    table, log = build_table(refresh=refresh)
+    rates = baseline_rates(table)
+    glm = fit_glm(table)
+    eff = tree_effect(glm)
+    t = glm.table.set_index("term")
+    aggr = t.loc["aggressive_trees_10m"]
+    cv = cv_gbm(table, table["cell"])
+    _, shap_values, _, X, pred = fit_gbm_and_explain(table)
+
+    df = table.copy()
+    df["pred_rate_per_km"] = (pred / df["length_m"] * 1000).round(3)
+    df["risk_pct"] = (df["pred_rate_per_km"].rank(pct=True) * 100).round(1)
+    df["risk_band"] = df["risk_pct"].map(risk_band)
+    cols = list(X.columns)
+    df["reason"] = [reasons(dict(zip(cols, row)), X.iloc[i].to_dict()) for i, row in enumerate(shap_values)]
+    df.loc[df["age_missing"], "age_years"] = np.nan
+    geo = df.geometry.line_merge().simplify(1.0).to_crs(4326)
+    # A few pipes are multi-part; the app draws one path per pipe, so use the longest part.
+    geo = geo.map(lambda g: max(g.geoms, key=lambda part: part.length) if g.geom_type.startswith("Multi") else g)
+    df["path"] = [[[round(x, 6), round(y, 6)] for x, y in g.coords] for g in geo]
+
+    out_dir = Path(out_dir)
+    (out_dir / "model").mkdir(parents=True, exist_ok=True)
+    keep = ["id", "street", "material", "diameter_mm", "age_years", "length_m", "blockages", "pred_rate_per_km",
+            "risk_band", "risk_pct", "reason", "trees_5m", "trees_10m", "aggressive_trees_10m", "path"]
+    pd.DataFrame(df[keep]).round({"length_m": 1, "age_years": 0, "diameter_mm": 0}).to_parquet(out_dir / "pipes.parquet", index=False)
+
+    shap_imp = pd.Series(np.abs(shap_values).mean(axis=0), index=cols).sort_values(ascending=False)
+    (out_dir / "model" / "glm_table.json").write_text(json.dumps({"terms": glm.table.round(4).to_dict("records"),
+        "alpha": round(glm.alpha, 3), "aic": round(glm.aic, 1), "dropped": glm.dropped}, indent=2), encoding="utf-8", newline="\n")
+    (out_dir / "model" / "shap_importance.json").write_text(json.dumps(
+        [{"feature": k, "mean_abs_shap": round(float(v), 5)} for k, v in shap_imp.items()], indent=2), encoding="utf-8", newline="\n")
+
+    pulled = min(s["pulled_at"] for s in project.last_sources if s.get("pulled_at"))
+    km = df["length_m"].sum() / 1000
+    top10_km = 0.1 * km
+    metrics = {
+        "schema_version": 1, "data_pulled_at": pulled,
+        "n_pipes": int(len(df)), "km": round(float(km), 1), "n_blocked": int((df.blockages > 0).sum()),
+        "total_blockages": int(df.blockages.sum()),
+        "tree_effect": {"irr_per_tree_5m": round(float(eff["irr_per_tree_5m"]), 4), "ci": [round(float(x), 4) for x in eff["ci"]],
+                        "p": round(float(eff["p"]), 4), "sentence": eff["sentence"]},
+        "aggressive_effect": {"irr": round(float(aggr.irr), 4), "ci": [round(float(aggr.ci_low), 4), round(float(aggr.ci_high), 4)],
+                              "p": round(float(aggr.p), 4)},
+        "cv": {"top_decile_capture": round(cv["top_decile_capture"], 4), "glm_top_decile_capture": round(cv["glm_top_decile_capture"], 4),
+               "baseline_top_decile_capture": round(cv["baseline_top_decile_capture"], 4),
+               "poisson_deviance": {k: round(v, 4) for k, v in cv["poisson_deviance"].items()}, "auc_any_blockage": round(cv["auc_any_blockage"], 4)},
+        "rates_by_material": [{"material": r.material, "per_km": round(float(r.per_km), 3), "ci": [round(float(r.ci_low), 3), round(float(r.ci_high), 3)],
+                               "km": round(float(r.km), 1), "blockages": int(r.blockages)} for r in rates.itertuples() if r.km >= 5],
+        "drivers": [{"term": r.term, "irr": round(r.irr, 3), "ci": [round(r.ci_low, 3), round(r.ci_high, 3)], "p": round(r.p, 4)}
+                    for r in glm.table.itertuples()],
+        "headline": (f"The riskiest 10% of sewer pipes by length ({top10_km:,.0f} km) hold {cv['top_decile_capture']:.0%} of recorded "
+                     f"blockages, but there is no clear sign that council-recorded street trees cause them."),
+    }
+    (out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
+    figures = sorted((out_dir / "figures").glob("*.png"))
+    write_manifest(SLUG, outputs=[out_dir / "pipes.parquet", out_dir / "metrics.json", out_dir / "model" / "glm_table.json",
+                                  out_dir / "model" / "shap_importance.json", *figures], transform_log=log, root=HERE.parent)
+    return out_dir
+
+
+def check(out_dir: Path = OUT) -> None:
+    import pandas as pd
+
+    from .model import RISK_BANDS
+
+    out_dir = Path(out_dir)
+    for f in ["pipes.parquet", "metrics.json", "manifest.json", "model/glm_table.json", "model/shap_importance.json"]:
+        assert (out_dir / f).exists(), f"missing {f}"
+    assert (out_dir / "pipes.parquet").stat().st_size <= APP_MAX_MB * 1e6, "pipes.parquet over size budget"
+    m = json.loads((out_dir / "metrics.json").read_text(encoding="utf-8"))
+    df = pd.read_parquet(out_dir / "pipes.parquet")
+    assert m["schema_version"] == 1 and m["n_pipes"] == len(df) >= MIN_PIPES, "pipe count"
+    assert int(df["blockages"].sum()) == m["total_blockages"], "blockages total does not match metrics"
+    assert set(df["risk_band"]) <= set(RISK_BANDS), "unknown risk band"
+    assert df["risk_pct"].between(0, 100).all() and (df["pred_rate_per_km"] >= 0).all(), "risk out of range"
+    assert not df["reason"].str.contains(r"\bsafe\b", case=False).any(), "a reason calls a pipe safe"
+    eff = m["tree_effect"]
+    assert eff["ci"][0] <= eff["irr_per_tree_5m"] <= eff["ci"][1], "tree effect CI does not contain the estimate"
+    for path in df["path"]:
+        assert len(path) >= 2, "pipe path too short"
+        for lon, lat in path:
+            assert LON[0] <= lon <= LON[1] and LAT[0] <= lat <= LAT[1], "pipe outside Christchurch"
+
+
 if __name__ == "__main__":
     refresh = "--refresh" in sys.argv
     if "--table-only" in sys.argv or "--profile-only" in sys.argv:
         t, _ = build_table(refresh=refresh)
         print(f"{SLUG}: model table {len(t):,} pipes, {int((t.blockages > 0).sum()):,} blocked — GO")
+    else:
+        out = run(refresh=refresh)
+        check(out)
+        m = json.loads((out / "metrics.json").read_text(encoding="utf-8"))
+        print(f"{SLUG}: {m['n_pipes']:,} pipes, top-decile capture {m['cv']['top_decile_capture']:.1%}, "
+              f"trees IRR {m['tree_effect']['irr_per_tree_5m']:.3f}")

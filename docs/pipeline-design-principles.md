@@ -13,8 +13,8 @@ This document has to match both the code and the intentions, so it starts with w
 | Resolve by name (§3 step 2) | **Exists** | `ccc_data.resolve()` |
 | Fetch, validate, cache, log (§3 steps 3–4) | **Exists** | `ccc_data.fetch()` |
 | Project helpers: `layers.toml`, transform log, web export, manifest (§3 steps 6, 9, 11) | **Exists** | `ccc_data/project.py` |
-| Profiling (§3 steps 5, 7) | Planned (plan 3) | — |
-| Per-project pipelines and `check()` (§3 steps 8, 10) | **Exists** for `best_park`; others planned (plans 3–4) | `projects/<slug>/pipeline.py` |
+| Profiling (§3 steps 5, 7) | **Exists** (`pipe_blockages`) | `projects/pipe_blockages/profile.py` |
+| Per-project pipelines and `check()` (§3 steps 8, 10) | **Exists** for `best_park`, `pipe_blockages`; others planned (plan 4) | `projects/<slug>/pipeline.py` |
 | Refresh workflow (monthly, opens a PR) | **Exists** | `.github/workflows/refresh.yml` |
 
 Sections marked **(exists)** describe code that runs today. Everything else describes intended behaviour, and the code must be made to match it.
