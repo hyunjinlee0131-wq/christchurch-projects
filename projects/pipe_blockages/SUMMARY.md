@@ -63,6 +63,7 @@ blockage-prone pipes** as targeting by material, and avoids spending on root cut
 - **Undated, cumulative counts:** there are no trends, and blockages before a pipe was relined are mixed with later ones.
 - **Observational data:** relining is done *because* pipes block, so it's used only as a control and never in the risk
   score.
+- **Install dates are mostly year-level estimates** (recorded as 31 December of a year), so ages are approximate.
 - **Tree coverage:** only trees the council records individually; private trees are invisible here.
 - **The root-aggressive genus list** is a common rule-of-thumb list from arborist and water-utility guidance, not
   checked against a specific study.
