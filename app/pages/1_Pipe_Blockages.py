@@ -12,7 +12,8 @@ from lib.data import load_metrics, load_pipes, search_street
 from lib.feedback import feedback_enabled, send_feedback
 from lib.text import pct, plural
 
-st.set_page_config(page_title="Sewer pipe blockages · Christchurch Projects", page_icon="🚰", layout="wide")
+if __name__ == "__main__" and "pages" not in st.session_state:  # run directly (tests); Home.py sets config otherwise
+    st.set_page_config(page_title="Sewer pipe blockages · Christchurch Projects", page_icon="🚰", layout="wide")
 
 MAX_ROWS = 500
 DRIVER_LABELS = {"diameter (per 100 mm)": "Each extra 100 mm wide", "age (per 10 years)": "Each extra 10 years old",

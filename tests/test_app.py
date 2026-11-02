@@ -67,3 +67,12 @@ def test_home_lists_pipe_tool():
     at = AppTest.from_file(str(APP / "Home.py"), default_timeout=30).run()
     assert not at.exception
     assert any("pipe" in m.value.lower() for m in at.markdown)
+
+
+def test_home_registers_pages_explicitly():
+    # Pages must be declared with st.navigation in Home.py, not discovered from pages/ at startup:
+    # Streamlit Cloud kept a pre-pages process alive and raised StreamlitPageNotFoundError.
+    src = (APP / "Home.py").read_text(encoding="utf-8")
+    assert "st.navigation(" in src and 'url_path="Pipe_Blockages"' in src
+    at = AppTest.from_file(str(APP / "Home.py"), default_timeout=30).run()
+    assert not at.exception
