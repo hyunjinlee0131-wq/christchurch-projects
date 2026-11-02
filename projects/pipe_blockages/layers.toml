@@ -1,0 +1,20 @@
+# Wastewater pipe blockages + tree roots. Only needed columns are fetched (wide pulls time out).
+[layers.ww_pipe]
+service = "WasteWater"
+name = "Ww Pipe"
+fields = ["Type", "ServiceStatus", "Ownership", "Construction", "NominalDiameter", "CommissionDate", "Depth", "Grade", "Treatment", "TreatmentDate", "drvLength"]
+
+[layers.blockage]
+service = "WasteWater"
+name = "Ww Pipe Blockage Count"
+fields = ["NumberOfBlockages"]
+
+[layers.tree]
+service = "Tree"
+name = "Tree"
+fields = ["Genus", "CrownSpread", "DiameterAtBreastHeight", "Height"]
+
+[layers.street]
+service = "Road"
+name = "Street Centre Line"
+fields = ["FullRoadName"]
